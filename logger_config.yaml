@@ -1,0 +1,22 @@
+version: 1
+formatters:
+  simple:
+    format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+handlers:
+  visscalar:
+    class: lamp.VisdomScalarHandler
+    level: DATA
+  vishist:
+    class: lamp.VisdomHistHandler
+    level: DATA
+  vishyper:
+    class: lamp.VisdomParameterHandler
+    level: DATA
+loggers:
+  sampleLogger:
+    level: DATA
+    handlers: [visscalar, vishist, vishyper]
+    propagate: no
+root:
+  level: DEBUG
+  handlers: [visscalar, vishist]
