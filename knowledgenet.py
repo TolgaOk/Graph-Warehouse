@@ -35,16 +35,25 @@ class GraphDqnModel(torch.nn.Module):
 
         self.kgconv1 = torch.nn.Conv2d(64, 64, 3, padding=1)
         self.kgconv2 = torch.nn.Conv2d(64, 64, 1, padding=0)
-        self.kgconv3 = torch.nn.Conv2d(64, 64, 3, padding=1)
-        self.kgconv4 = torch.nn.Conv2d(64, 64, 1, padding=0)
+        self.kgconv3 = torch.nn.Conv2d(64, 32, 3, padding=1)
+        self.kgconv4 = torch.nn.Conv2d(64, 32, 1, padding=0)
 
+        self.instance_norm = torch.nn.InstanceNorm2d(64)
         init_weight = torch.rand(64, 64)
         self.pool_weight = torch.nn.Parameter(init_weight)
 
-        self.fc = torch.nn.Linear(mapsize*mapsize*64, 50)
-        self.head = torch.nn.Linear(50, n_act)
+        self.policy = torch.nn.Sequential(
+            torch.nn.Linear(32, 256),
+            torch.nn.ReLU(),
+            torch.nn.Linear(256, n_act)
+        )
+        self.value = torch.nn.Sequential(
+            torch.nn.Linear(32, 256),
+            torch.nn.ReLU(),
+            torch.nn.Linear(256, 1)
+        )
 
-    def forward(self, self.adj, objmap):
+    def forward(self, objmap):
 
         # shape: (B, N, S, S)
         bs, _, height, width = objmap.shape
@@ -74,14 +83,15 @@ class GraphDqnModel(torch.nn.Module):
         state = self.broadcast(kg_features, objmap)
 
         # KG conv
+
         state = self.kgconv3(skip_state) + self.kgconv4(state)
         state = torch.relu(state)
 
         # Dense Layers
-        state = state.view(-1, height*width*64)
-        state = torch.relu(self.fc(state))
-        values = self.head(state)
-        return values
+        state = state.mean((-1, -2))
+        policy = self.policy(state)
+        value = self.value(state)
+        return policy, value
 
     def broadcast(self, feature, objectmap):
         """ objectmap: (B, N, H, W)
@@ -121,7 +131,8 @@ class GraphDqnModel(torch.nn.Module):
                                            "dimensional. (B, N, H, W): "
                                            "batch size, #nodes, height, width")
         n_occurrence = objectmap.sum((-2, -1))
+        n_occurrence[n_occurrence == 0] = 1
         feature = (objectmap.unsqueeze(2) *
                    state.unsqueeze(1))
         feature = torch.matmul(feature.sum((-2, -1)), self.pool_weight)
-        return feature / n_occurrence.unsqueeze(-1)
+        return feature / (n_occurrence.unsqueeze(-1))

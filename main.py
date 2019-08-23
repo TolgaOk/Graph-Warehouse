@@ -1,90 +1,92 @@
 import torch
 import numpy as np
-import gym
+from copy import deepcopy
 
-from rl_pysc2.agents.a2c.model import A2C
-from rl_pysc2.utils.parallel_envs import ParallelEnv
-from gymcolab.envs.warehouse import Warehouse
-from vanillanet import ConvModel
-from relationalnet import RelationalNet
+from test import test_agent
+from train import train_agent
 
 
-def train():
-    env = Warehouse()
-    # env.settings['visualize'] = True
-    logger = logger_config()
-
-    hyperparams = dict(
-        gamma=0.99,
-        nenv=8,
-        nstep=20,
-        n_timesteps=100000,
-        lr=0.0001,
-    )
-
-    env = Warehouse()
-    in_channel, mapsize, _ = env.observation_space.shape
-    n_act = 4
-    network = RelationalNet(in_channel, mapsize, n_act)
-    env.close()
-    del env
-    optimizer = torch.optim.RMSprop(network.parameters(),
-                                    lr=hyperparams["lr"])
-    agent = A2C(network, optimizer)
-    device = "cuda"
-    agent.to(device)
-    loss = 0
-
-    penv = ParallelEnv(hyperparams["nenv"], Warehouse)
-    eps_rewards = np.zeros((hyperparams["nenv"], 1))
-    reward_list = [0]
-
-    def to_torch(array):
-        return torch.from_numpy(array).to(device).float()
-    logger.hyperparameters(hyperparams, win="Hyperparameters")
-
-    with penv as state:
-        state = to_torch(state)
-        for i in range(hyperparams["n_timesteps"]//hyperparams["nstep"]):
-            for j in range(hyperparams["nstep"]):
-                action, log_prob, value = agent(state)
-                action = action.unsqueeze(1).cpu().numpy()
-                next_state, reward, done = penv.step(action)
-                next_state = to_torch(next_state)
-                with torch.no_grad():
-                    _, next_value = agent.network(next_state)
-                agent.add_trans(to_torch(reward), to_torch(done),
-                                log_prob.unsqueeze(1), value,
-                                next_value)
-                state = next_state
-                for j, d in enumerate(done.flatten()):
-                    eps_rewards[j] += reward[j].item()
-                    if d == 1:
-                        reward_list.append(eps_rewards[j].item())
-                        eps_rewards[j] = 0
-                        logger.scalar(np.mean(reward_list[-20:]),
-                                      win="reward", trace="Last 20")
-                        logger.scalar(np.mean(reward_list[-50:]),
-                                      win="reward", trace="Last 50")
-                        logger.scalar(loss, win="loss")
-                    print(("Epsiode: {}, Reward: {}, Loss: {}")
-                          .format(len(reward_list)//hyperparams["nenv"],
-                                  np.mean(reward_list[-100:]), loss),
-                          end="\r")
-            loss = agent.update(hyperparams["gamma"])
-            if i % 10 == 0:
-                agent.save_model("model_params/model_parameters.p")
+def generate_maps(ball_count):
+    """
+        ball_count: dictionary of characters and number of occurence
+    """
+    assert isinstance(ball_count, dict), "ball_count must be dictionary"
+    objects = deepcopy(ball_count)
+    worldmap = ["##########",
+                "#        #",
+                "#        #",
+                "#        #",
+                "#        #",
+                "#        #",
+                "#        #",
+                "#        #",
+                "#        #",
+                "##########"]
+    empty_spaces = np.vstack([np.frombuffer(line.encode("ascii"),
+                                            dtype=np.uint8)
+                              for line in worldmap])
+    height, width = empty_spaces.shape
+    possible_locations = np.argwhere(empty_spaces.reshape(-1) == 32)
+    n_objects = 2 + sum(v for ball, v in objects.items())
+    locations = np.random.choice(possible_locations.reshape(-1),
+                                 size=n_objects, replace=False)
+    index = 0
+    objects["P"] = 1
+    objects["B"] = 1
+    for char, occurence in objects.items():
+        for i in range(occurence):
+            y = locations[index] // width
+            x = locations[index] % width
+            row = list(worldmap[y])
+            row[x] = char
+            worldmap[y] = "".join(row)
+            index += 1
+    return worldmap
 
 
-def logger_config():
-    import yaml
-    import logging.config
-    with open('logger_config.yaml', 'r') as f:
-        config = yaml.safe_load(f.read())
-        logging.config.dictConfig(config)
-    logger = logging.getLogger(__name__)
-    return logger
+def warehouse_setting(ball_count, balls, n_maps, bucket="B"):
+    assert isinstance(ball_count, dict)
+    assert isinstance(balls, str)
+    n_objects = 3 + len(balls)
+    n_edge = 3
+    adj = torch.zeros(n_edge, n_objects, n_objects)
+    ordered_balls = {k: i for i, k in enumerate(sorted(balls))}
+
+    # "#, B, P, b, c, d"
+    # Impassible edges
+    adj[0][2, 0] = 1.0  # Player to wall
+    adj[0][2, 1] = 1.0  # Player to bucket
+    # Collectable edges
+    for ball in ball_count.keys():
+        adj[1][2, ordered_balls[ball]+3] = 1.0  # Player to ball
+    # Bucket to ball edges
+    for ball in ball_count.keys():
+        adj[2][ordered_balls[ball]+3, 1] = 1.0
+
+    pairing = {
+        bucket: [char for char in ball_count.keys()],
+    }
+
+    worldmaps = [generate_maps(ball_count) for i in range(n_maps)]
+    return worldmaps, pairing, lambda device: adj.to(device)
 
 
 if __name__ == "__main__":
-    train()
+
+    balls = "bcd"
+    bucket = "B"
+    train_ball_counts = {"b": 1}
+    test_ball_counts = {"c": 1}
+    n_train_maps = 100
+    n_test_maps = 20
+    model_path = "graphdqn_mean_param.b"
+
+    # train_worldmaps, train_pairing, train_adj = warehouse_setting(
+    #     train_ball_counts, balls, n_train_maps, bucket=bucket)
+    # train_agent(train_worldmaps, balls, bucket,
+    #             train_pairing, train_adj, model_path)
+
+    test_worldmaps, test_pairing, test_adj = warehouse_setting(
+        test_ball_counts, balls, n_test_maps, bucket=bucket)
+    test_agent(test_worldmaps, balls, bucket,
+               test_pairing, test_adj, model_path)

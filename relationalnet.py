@@ -13,6 +13,7 @@ class RelationalModule(torch.nn.Module):
         self.value_fc = torch.nn.Linear(in_feature + 2, dim_value)
         self.entitywise_fc = torch.nn.Linear(dim_value, in_feature)
         self.layer_norm = torch.nn.LayerNorm(in_feature)
+        self.instance_norm = torch.nn.InstanceNorm2d(in_feature)
         self.apply(self.param_init)
 
     def forward(self, input, activation=lambda x: x):
@@ -23,25 +24,25 @@ class RelationalModule(torch.nn.Module):
         """
         input = input.permute(0, 2, 3, 1)
         bs, heigth, width, fs = input.shape
-        # ----------- ! Spatial Coordinate Concatination ----------------
-        x_cords, y_cords = torch.meshgrid(torch.arange(heigth),
-                                          torch.arange(width))
+        # ----------- ! Spatial Coordinate Concatenation ----------------
+        x_cords, y_cords = torch.meshgrid(torch.arange(-1, 1, 2/heigth),
+                                          torch.arange(-1, 1, 2/width))
         x_cords = x_cords.reshape(1, heigth, width, 1).repeat(bs, 1, 1, 1)
         y_cords = y_cords.reshape(1, heigth, width, 1).repeat(bs, 1, 1, 1)
         coord_input = torch.cat([input,
                                  y_cords.to(input.device).float(),
                                  x_cords.to(input.device).float()], dim=-1)
-        # ------------ Spatial Coordinate Concatination ! ---------------
+        # ------------ Spatial Coordinate Concatenation ! ---------------
 
         coord_input = coord_input.reshape(bs*heigth*width, fs+2)
         # (B * S**2, F_k)
-        query = self.query_fc(coord_input).reshape(bs, heigth**2, -1)
+        query = self.query_fc(coord_input).reshape(bs, heigth*width, -1)
         query = activation(query)
         # (B, S**2, F_k)
-        key = self.key_fc(coord_input).reshape(bs, heigth**2, -1)
+        key = self.key_fc(coord_input).reshape(bs, heigth*width, -1)
         key = activation(key)
         # (B, S**2, F_v)
-        value = self.value_fc(coord_input).reshape(bs, heigth**2, -1)
+        value = self.value_fc(coord_input).reshape(bs, heigth*width, -1)
         value = activation(value)
 
         dim_key_sqrt = math.sqrt(self.dim_key)
@@ -56,9 +57,13 @@ class RelationalModule(torch.nn.Module):
             attened_values.reshape(bs*heigth*width, -1))
         output = activation(output)
 
-        feature = torch.mean(output.reshape(bs, heigth, width, -1)+input,
-                             dim=(1, 2))
-        feature = self.layer_norm(feature)
+        # feature = torch.mean(output.reshape(bs, heigth, width, -1) + input,
+        #                      dim=(1, 2))
+        # feature = self.layer_norm(feature)
+        # return feature
+
+        feature = output.reshape(bs, heigth, width, -1) + input
+        feature = self.instance_norm(feature.permute(0, 3, 1, 2))
         return feature
 
     def param_init(self, module):
@@ -75,30 +80,35 @@ class RelationalNet(torch.nn.Module):
         self.mapsize = mapsize
 
         # Input
-        self.conv1 = torch.nn.Conv2d(in_channel, 64, 5, padding=2)
-        self.conv2 = torch.nn.Conv2d(64, 32, 5, padding=2)
+        self.convnet = torch.nn.Sequential(
+            torch.nn.Conv2d(in_channel, 64, 5, 1, padding=2),
+            torch.nn.ReLU(),
+            torch.nn.Conv2d(64, 32, 5, 1, padding=2),
+            torch.nn.ReLU(),
+        )
 
         # Relational
         self.relational_module = RelationalModule(32, 16, 16)
 
         # Output
         self.policy = torch.nn.Sequential(
-            torch.nn.Linear(32, 256),
+            torch.nn.Linear(32*mapsize*mapsize, 256),
             torch.nn.ReLU(),
             torch.nn.Linear(256, n_act)
         )
         self.value = torch.nn.Sequential(
-            torch.nn.Linear(32, 256),
+            torch.nn.Linear(32*mapsize*mapsize, 256),
             torch.nn.ReLU(),
             torch.nn.Linear(256, 1)
         )
         self.apply(self.param_init)
 
     def forward(self, state):
-        state = torch.nn.functional.relu(self.conv1(state))
-        state = torch.nn.functional.relu(self.conv2(state))
+        bs = state.shape[0]
+        state = self.convnet(state)
 
         feature = self.relational_module(state, torch.nn.functional.relu)
+        feature = feature.reshape(bs, -1)
 
         policy = self.policy(feature)
         value = self.value(feature)
