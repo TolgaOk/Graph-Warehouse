@@ -11,26 +11,18 @@ from knowledgenet import GraphDqnModel
 
 
 def train_agent(worldmaps, balls, bucket, relations,
-                adjacency, save_param_path=None):
+                adjacency, hyperparams, save_param_path=None):
     logger = logger_config()
 
-    hyperparams = dict(
-        gamma=0.99,
-        nenv=8,
-        nstep=20,
-        n_timesteps=1000000,
-        lr=0.0001,
-        beta=0.11,
-    )
     device = "cuda"
 
     env = VariationalWarehouse(
         balls, bucket, pairing=relations, worldmaps=worldmaps)
     in_channel, mapsize, _ = env.observation_space.shape
     n_act = 4
-    network = ConvModel(in_channel, mapsize, n_act)
-    # adj = adjacency(device)
-    # network = GraphDqnModel(adj.shape[0], in_channel, mapsize, n_act, adj)
+    # network = ConvModel(in_channel, mapsize, n_act)
+    adj = adjacency(device)
+    network = GraphDqnModel(adj.shape[0], in_channel, mapsize, n_act, adj)
     env.close()
     del env
     optimizer = torch.optim.Adam(network.parameters(),
@@ -87,7 +79,7 @@ def train_agent(worldmaps, balls, bucket, relations,
                           end="\r")
             loss = agent.update(hyperparams["gamma"], hyperparams["beta"])
             if i % 10 == 0 and save_param_path:
-                agent.save_model("model_params/" + save_param_path)
+                agent.save_model(save_param_path)
 
 
 def logger_config():

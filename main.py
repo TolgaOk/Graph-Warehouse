@@ -1,6 +1,9 @@
 import torch
 import numpy as np
 from copy import deepcopy
+import yaml
+import matplotlib.pyplot as plt
+import os
 
 from test import test_agent
 from train import train_agent
@@ -76,17 +79,32 @@ if __name__ == "__main__":
     balls = "bcd"
     bucket = "B"
     train_ball_counts = {"b": 1}
-    test_ball_counts = {"c": 1}
+    test_ball_counts = {"b": 1}
     n_train_maps = 100
-    n_test_maps = 20
-    model_path = "graphdqn_mean_param.b"
+    n_test_maps = 1000
+    dir_path = "experiments/grapha2c_maxpool/"
+    model_path = dir_path + "param.b"
+    hyperparam_path = dir_path + "hyperparam.yaml"
+
+    hyperparams = dict(
+        gamma=0.99,
+        nenv=8,
+        nstep=20,
+        n_timesteps=200000,
+        lr=0.0001,
+        beta=0.11,
+    )
+    yaml.dump(hyperparams, open(hyperparam_path, "w"))
 
     # train_worldmaps, train_pairing, train_adj = warehouse_setting(
     #     train_ball_counts, balls, n_train_maps, bucket=bucket)
     # train_agent(train_worldmaps, balls, bucket,
-    #             train_pairing, train_adj, model_path)
+    #             train_pairing, train_adj, hyperparams, model_path)
 
     test_worldmaps, test_pairing, test_adj = warehouse_setting(
         test_ball_counts, balls, n_test_maps, bucket=bucket)
-    test_agent(test_worldmaps, balls, bucket,
-               test_pairing, test_adj, model_path)
+    results = test_agent(test_worldmaps, balls, bucket,
+                         test_pairing, test_adj, model_path,
+                         render=False, n_test=1000)
+    plt.hist(results)
+    plt.show()

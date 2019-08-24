@@ -10,6 +10,14 @@ class EdgeGraphConv(torch.nn.Module):
         self.bias = torch.nn.Parameter(torch.zeros(out_size))
 
     def forward(self, adjacency, feature):
+        """
+            feature: (B, N, F)
+            adjacency: (E, N, N)
+            weight: (E, F, F')
+            support: (B, E, N, F')
+            ouput: (B, E, N, F')
+                   (B, N, F')
+        """
         assert len(feature.shape) == 3, "Feature must be 3 dimensional"
         feature = torch.unsqueeze(feature, dim=1)
         support = torch.matmul(feature, self.weight)
@@ -53,6 +61,8 @@ class GraphDqnModel(torch.nn.Module):
             torch.nn.Linear(256, 1)
         )
 
+        self.conv_pool = torch.nn.MaxPool2d(mapsize)
+
     def forward(self, objmap):
 
         # shape: (B, N, S, S)
@@ -88,7 +98,8 @@ class GraphDqnModel(torch.nn.Module):
         state = torch.relu(state)
 
         # Dense Layers
-        state = state.mean((-1, -2))
+        # state = state.mean((-1, -2))
+        state = self.conv_pool(state).reshape(bs, -1)
         policy = self.policy(state)
         value = self.value(state)
         return policy, value
@@ -135,4 +146,5 @@ class GraphDqnModel(torch.nn.Module):
         feature = (objectmap.unsqueeze(2) *
                    state.unsqueeze(1))
         feature = torch.matmul(feature.sum((-2, -1)), self.pool_weight)
+        # feature = torch.relu(feature)
         return feature / (n_occurrence.unsqueeze(-1))
