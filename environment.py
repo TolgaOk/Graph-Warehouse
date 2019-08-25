@@ -13,7 +13,7 @@ class VariationalWarehouse(Warehouse):
         super().__init__(balls, bucket, worldmap=worldmap, pairing=pairing)
 
     def reset(self):
-        self.worldmap = random.sample(self.world_maps, 1)[0]
+        self.world_map = random.sample(self.world_maps, 1)[0]
         return super().reset()
 
 
