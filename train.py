@@ -21,9 +21,10 @@ def train_agent(worldmaps, balls, bucket, relations,
         balls, bucket, pairing=relations, worldmaps=worldmaps)
     in_channel, mapsize, _ = env.observation_space.shape
     n_act = 4
-    # network = ConvModel(in_channel, mapsize, n_act)
-    adj = adjacency(device)
-    network = GraphDqnModel(adj.shape[0], in_channel, mapsize, n_act, adj)
+    network = RelationalNet(in_channel, mapsize, n_act)
+    #network = ConvModel(in_channel, mapsize, n_act)
+    #adj = adjacency(device)
+    #network = GraphDqnModel(adj.shape[0], in_channel, mapsize, n_act, adj)
     env.close()
     del env
     optimizer = torch.optim.Adam(network.parameters(),
@@ -66,19 +67,19 @@ def train_agent(worldmaps, balls, bucket, relations,
                         reward_list.append(eps_rewards[j].item())
                         eps_rewards[j] = 0
                         logger.scalar(np.mean(reward_list[-10:]),
-                                      env="warehouse_" + suffix,
-                                      win="reward", trace="Last 10")
+                                      env="main",
+                                      win="reward_"+suffix, trace="Last 10")
                         logger.scalar(np.mean(reward_list[-50:]),
-                                      env="warehouse_" + suffix,
-                                      win="reward", trace="Last 50")
+                                      env="main",
+                                      win="reward_"+suffix, trace="Last 50")
                         logger.scalar(np.mean(success_list[-10:]),
-                                      env="warehouse_" + suffix,
-                                      win="success", trace="Last 10")
+                                      env="main",
+                                      win="success_"+suffix, trace="Last 10")
                         logger.scalar(np.mean(success_list[-50:]),
-                                      env="warehouse_" + suffix,
-                                      win="success", trace="Last 50")
-                        logger.scalar(loss, env="warehouse_" + suffix,
-                                      win="loss")
+                                      env="main",
+                                      win="success_"+suffix, trace="Last 50")
+                        logger.scalar(loss, env="main",
+                                      win="loss_"+suffix)
                     # print(("Epsiode: {}, Reward: {}, Loss: {}")
                     #       .format(len(reward_list)//hyperparams["nenv"],
                     #               np.mean(reward_list[-100:]), loss),

@@ -78,10 +78,10 @@ def run(index=0, test=False):
     balls = "bcd"
     bucket = "B"
     train_ball_counts = {"b": 1}
-    test_ball_counts = {"b": 1}
+    test_ball_counts = {"c": 3, "d":2}
     n_train_maps = 100
     n_test_maps = 1000
-    dir_path = "experiments/a2c_maxpool_concat/" + str(index) + "/"
+    dir_path = "experiments/Relational_a2c_maxpool_concat/" + str(index) + "/"
     if not os.path.exists(dir_path):
         os.makedirs(dir_path, exist_ok=True)
     model_path = dir_path + "param.b"
@@ -108,10 +108,18 @@ def run(index=0, test=False):
     if test:
         test_worldmaps, test_pairing, test_adj = warehouse_setting(
             test_ball_counts, balls, n_test_maps, bucket=bucket)
-        results = test_agent(test_worldmaps, balls, bucket,
+        results, success_list = test_agent(test_worldmaps, balls, bucket,
                              test_pairing, test_adj, model_path,
-                             render=False, n_test=1000)
-        plt.hist(results)
+                             render=False, n_test=100)
+        plt.subplot(211)
+        plt.hist(results, bins=20, rwidth=0.30)
+        plt.ylabel("reward")
+        plt.title("Reward Histogram")
+        plt.subplot(212)
+        plt.hist(success_list, bins=2, rwidth=0.30)
+        plt.ylabel("rate")
+        plt.xlabel("Success rate: {0:.2f}".format(np.mean(success_list)))
+        plt.title("Success Histogram")
         plt.show()
 
 
@@ -126,4 +134,4 @@ if __name__ == "__main__":
     for p in processes:
         p.join()
 
-    run(test=True)
+    run(index=2, test=True)

@@ -17,12 +17,17 @@ def test_agent(worldmaps, balls, bucket, relations,
                                worldmaps=worldmaps, pairing=relations)
     in_channel, mapsize, _ = env.observation_space.shape
     n_act = 4
-    # network = ConvModel(in_channel, mapsize, n_act)
-    adj = adjacency(device)
-    network = GraphDqnModel(adj.shape[0], in_channel, mapsize, n_act, adj)
+    network = RelationalNet(in_channel, mapsize, n_act)
+    #network = ConvModel(in_channel, mapsize, n_act)
+    #adj = adjacency(device)
+    #network = GraphDqnModel(adj.shape[0], in_channel, mapsize, n_act, adj)
     agent = A2C(network, None)
     agent.to(device)
     agent.eval()
+
+    reward_list = [0]
+    success_list = [0]
+
 
     agent.load_model(load_param_path)
 
@@ -42,8 +47,10 @@ def test_agent(worldmaps, balls, bucket, relations,
             action, log_prob, value, entropy = agent(state.unsqueeze(0))
             action = action.item()
             state, reward, done, _ = env.step(action)
+            if done is True:
+                success_list.append(float(reward != -0.1))
             eps_reward += reward
         average_reward.append(eps_reward)
         print("Progress: {}%".format(i/n_test*100), end="\r")
 
-    return average_reward
+    return average_reward, success_list
