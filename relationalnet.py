@@ -3,9 +3,17 @@ import math
 
 
 class RelationalModule(torch.nn.Module):
-    def __init__(self, in_feature, dim_value, dim_key):
+    def __init__(self, in_feature, dim_value, dim_key, n_heads):
         super().__init__()
-
+        assert n_heads <= dim_key, ("Argment <n_heads> should not be "
+                                    "greater than argument <dim_key>")
+        assert n_heads <= dim_value, ("Argment <n_heads> should not be "
+                                      "greater than argument <dim_value>")
+        assert dim_key % n_heads == 0,   ("Argument <dim_key>   must be"
+                                          " divisible without reminder")
+        assert dim_value % n_heads == 0, ("Argument <dim_value> must be"
+                                          " divisible without reminder ")
+        self.n_heads = n_heads
         self.in_feature = in_feature
         self.dim_key = dim_key
         self.query_fc = torch.nn.Linear(in_feature + 2, dim_key)
@@ -23,46 +31,59 @@ class RelationalModule(torch.nn.Module):
             input -> (B*S**2, F+2)  :2D
         """
         input = input.permute(0, 2, 3, 1)
-        bs, heigth, width, fs = input.shape
+        bs, height, width, fs = input.shape
         # ----------- ! Spatial Coordinate Concatenation ----------------
-        x_cords, y_cords = torch.meshgrid(torch.arange(-1, 1, 2/heigth),
+        x_cords, y_cords = torch.meshgrid(torch.arange(-1, 1, 2/height),
                                           torch.arange(-1, 1, 2/width))
-        x_cords = x_cords.reshape(1, heigth, width, 1).repeat(bs, 1, 1, 1)
-        y_cords = y_cords.reshape(1, heigth, width, 1).repeat(bs, 1, 1, 1)
+        x_cords = x_cords.reshape(1, height, width, 1).repeat(bs, 1, 1, 1)
+        y_cords = y_cords.reshape(1, height, width, 1).repeat(bs, 1, 1, 1)
         coord_input = torch.cat([input,
                                  y_cords.to(input.device).float(),
                                  x_cords.to(input.device).float()], dim=-1)
         # ------------ Spatial Coordinate Concatenation ! ---------------
 
-        coord_input = coord_input.reshape(bs*heigth*width, fs+2)
+        coord_input = coord_input.reshape(bs*height*width, fs+2)
         # (B * S**2, F_k)
-        query = self.query_fc(coord_input).reshape(bs, heigth*width, -1)
+        query = self.query_fc(coord_input)
+        query = query.reshape(bs, height*width, self.n_heads, -1)
+        query = query.permute(0, 2, 1, 3)
+        query = query.reshape(bs*self.n_heads, height*width, -1)
         query = activation(query)
         # (B, S**2, F_k)
-        key = self.key_fc(coord_input).reshape(bs, heigth*width, -1)
+        key = self.key_fc(coord_input)
+        key = key.reshape(bs, height*width, self.n_heads, -1)
+        key = key.permute(0, 2, 1, 3)
+        key = key.reshape(bs*self.n_heads, height*width, -1)
         key = activation(key)
         # (B, S**2, F_v)
-        value = self.value_fc(coord_input).reshape(bs, heigth*width, -1)
+        value = self.value_fc(coord_input)
+        value = value.reshape(bs, height*width, self.n_heads, -1)
+        value = value.permute(0, 2, 1, 3)
+        value = value.reshape(bs*self.n_heads, height*width, -1)
         value = activation(value)
 
         dim_key_sqrt = math.sqrt(self.dim_key)
-        # (B, S**2, S**2)
+        # (B*H, S**2, S**2)
         weights = torch.matmul(query, key.permute(0, 2, 1))/dim_key_sqrt
         attn_weights = torch.nn.functional.softmax(weights, dim=-1)
 
-        # (B, S**2, F_v)
+        # (B*H, S**2, F_v//H)
         attened_values = torch.matmul(attn_weights, value)
+        attened_values = attened_values.reshape(
+            bs, self.n_heads, height*width, -1)
+        attened_values = attened_values.permute(0, 2, 1, 3)
+        attened_values = attened_values.reshape(bs, height*width, -1)
         # (B, S**2, F)
         output = self.entitywise_fc(
-            attened_values.reshape(bs*heigth*width, -1))
+            attened_values.reshape(bs*height*width, -1))
         output = activation(output)
 
-        # feature = torch.mean(output.reshape(bs, heigth, width, -1) + input,
+        # feature = torch.mean(output.reshape(bs, height, width, -1) + input,
         #                      dim=(1, 2))
         # feature = self.layer_norm(feature)
         # return feature
 
-        feature = output.reshape(bs, heigth, width, -1) + input
+        feature = output.reshape(bs, height, width, -1) + input
         feature = self.instance_norm(feature.permute(0, 3, 1, 2))
         return feature
 
@@ -88,16 +109,17 @@ class RelationalNet(torch.nn.Module):
         )
 
         # Relational
-        self.relational_module = RelationalModule(32, 16, 16)
+        self.relational_module = RelationalModule(32, 16, 16, n_heads=4)
+        self.pool = torch.nn.MaxPool2d(mapsize)
 
         # Output
         self.policy = torch.nn.Sequential(
-            torch.nn.Linear(32*mapsize*mapsize, 256),
+            torch.nn.Linear(32, 256),
             torch.nn.ReLU(),
             torch.nn.Linear(256, n_act)
         )
         self.value = torch.nn.Sequential(
-            torch.nn.Linear(32*mapsize*mapsize, 256),
+            torch.nn.Linear(32, 256),
             torch.nn.ReLU(),
             torch.nn.Linear(256, 1)
         )
@@ -108,6 +130,7 @@ class RelationalNet(torch.nn.Module):
         state = self.convnet(state)
 
         feature = self.relational_module(state, torch.nn.functional.relu)
+        feature = self.pool(feature)
         feature = feature.reshape(bs, -1)
 
         policy = self.policy(feature)

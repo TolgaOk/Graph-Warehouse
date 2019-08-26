@@ -5,14 +5,12 @@ import gym
 from rl_pysc2.agents.a2c.model import A2C
 from rl_pysc2.utils.parallel_envs import ParallelEnv
 from environment import VariationalWarehouse
-from vanillanet import ConvModel
-from relationalnet import RelationalNet
 from knowledgenet import GraphDqnModel
 
 
 def train_agent(worldmaps, balls, bucket, relations,
-                adjacency, hyperparams, save_param_path=None,
-                suffix="0"):
+                adjacency, hyperparams, network_class,
+                save_param_path=None, suffix="0"):
     logger = logger_config()
 
     device = "cuda"
@@ -21,10 +19,11 @@ def train_agent(worldmaps, balls, bucket, relations,
         balls, bucket, pairing=relations, worldmaps=worldmaps)
     in_channel, mapsize, _ = env.observation_space.shape
     n_act = 4
-    network = RelationalNet(in_channel, mapsize, n_act)
-    #network = ConvModel(in_channel, mapsize, n_act)
-    #adj = adjacency(device)
-    #network = GraphDqnModel(adj.shape[0], in_channel, mapsize, n_act, adj)
+    if network_class == GraphDqnModel:
+        adj = adjacency(device)
+        network = network_class(adj.shape[0], in_channel, mapsize, n_act, adj)
+    else:
+        network = network_class(in_channel, mapsize, n_act)
     env.close()
     del env
     optimizer = torch.optim.Adam(network.parameters(),

@@ -15,5 +15,3 @@ class VariationalWarehouse(Warehouse):
     def reset(self):
         self.world_map = random.sample(self.world_maps, 1)[0]
         return super().reset()
-
-

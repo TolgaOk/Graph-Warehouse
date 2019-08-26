@@ -7,6 +7,9 @@ import os
 
 from test import test_agent
 from train import train_agent
+from knowledgenet import GraphDqnModel
+from relationalnet import RelationalNet
+from vanillanet import ConvModel
 
 
 def generate_maps(ball_count):
@@ -74,11 +77,11 @@ def warehouse_setting(ball_count, balls, n_maps, bucket="B"):
     return worldmaps, pairing, lambda device: adj.to(device)
 
 
-def run(index=0, test=False):
+def run(network_class, index=0, test=False):
     balls = "bcd"
     bucket = "B"
     train_ball_counts = {"b": 1}
-    test_ball_counts = {"c": 3, "d":2}
+    test_ball_counts = {"c": 3, "d": 2}
     n_train_maps = 100
     n_test_maps = 1000
     dir_path = "experiments/Relational_a2c_maxpool_concat/" + str(index) + "/"
@@ -89,7 +92,7 @@ def run(index=0, test=False):
 
     hyperparams = dict(
         gamma=0.99,
-        nenv=8,
+        nenv=1,
         nstep=20,
         n_timesteps=200000,
         lr=0.0001,
@@ -103,14 +106,15 @@ def run(index=0, test=False):
             train_ball_counts, balls, n_train_maps, bucket=bucket)
         train_agent(train_worldmaps, balls, bucket,
                     train_pairing, train_adj, hyperparams,
-                    model_path, suffix=str(index))
+                    network_class, model_path, suffix=str(index))
 
     if test:
         test_worldmaps, test_pairing, test_adj = warehouse_setting(
             test_ball_counts, balls, n_test_maps, bucket=bucket)
         results, success_list = test_agent(test_worldmaps, balls, bucket,
-                             test_pairing, test_adj, model_path,
-                             render=False, n_test=100)
+                                           test_pairing, test_adj, model_path,
+                                           network_class, render=False,
+                                           n_test=100)
         plt.subplot(211)
         plt.hist(results, bins=20, rwidth=0.30)
         plt.ylabel("reward")
@@ -125,13 +129,15 @@ def run(index=0, test=False):
 
 if __name__ == "__main__":
 
+    NETWORK_CLASS = RelationalNet
     processes = []
-    for i in range(3):
-        process = torch.multiprocessing.Process(target=run, args=(i, False))
+    for i in range(1):
+        process = torch.multiprocessing.Process(
+            target=run, args=(NETWORK_CLASS, i, False))
         process.start()
         processes.append(process)
 
     for p in processes:
         p.join()
 
-    run(index=2, test=True)
+    run(NETWORK_CLASS, index=2, test=True)

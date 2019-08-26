@@ -5,29 +5,28 @@ import time
 from environment import VariationalWarehouse
 from rl_pysc2.agents.a2c.model import A2C
 from knowledgenet import GraphDqnModel
-from relationalnet import RelationalNet
-from vanillanet import ConvModel
 
 
 def test_agent(worldmaps, balls, bucket, relations,
-               adjacency, load_param_path, render=True, n_test=1):
+               adjacency, load_param_path,
+               network_class, render=True, n_test=1):
     device = "cuda"
 
     env = VariationalWarehouse(balls, bucket,
                                worldmaps=worldmaps, pairing=relations)
     in_channel, mapsize, _ = env.observation_space.shape
     n_act = 4
-    network = RelationalNet(in_channel, mapsize, n_act)
-    #network = ConvModel(in_channel, mapsize, n_act)
-    #adj = adjacency(device)
-    #network = GraphDqnModel(adj.shape[0], in_channel, mapsize, n_act, adj)
+    if network_class == GraphDqnModel:
+        adj = adjacency(device)
+        network = network_class(adj.shape[0], in_channel, mapsize, n_act, adj)
+    else:
+        network = network_class(in_channel, mapsize, n_act)
     agent = A2C(network, None)
     agent.to(device)
     agent.eval()
 
     reward_list = [0]
     success_list = [0]
-
 
     agent.load_model(load_param_path)
 
