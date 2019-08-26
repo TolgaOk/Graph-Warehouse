@@ -11,7 +11,8 @@ from knowledgenet import GraphDqnModel
 
 
 def train_agent(worldmaps, balls, bucket, relations,
-                adjacency, hyperparams, save_param_path=None):
+                adjacency, hyperparams, save_param_path=None,
+                suffix="0"):
     logger = logger_config()
 
     device = "cuda"
@@ -65,18 +66,23 @@ def train_agent(worldmaps, balls, bucket, relations,
                         reward_list.append(eps_rewards[j].item())
                         eps_rewards[j] = 0
                         logger.scalar(np.mean(reward_list[-10:]),
+                                      env="warehouse_" + suffix,
                                       win="reward", trace="Last 10")
                         logger.scalar(np.mean(reward_list[-50:]),
+                                      env="warehouse_" + suffix,
                                       win="reward", trace="Last 50")
                         logger.scalar(np.mean(success_list[-10:]),
+                                      env="warehouse_" + suffix,
                                       win="success", trace="Last 10")
                         logger.scalar(np.mean(success_list[-50:]),
+                                      env="warehouse_" + suffix,
                                       win="success", trace="Last 50")
-                        logger.scalar(loss, win="loss")
-                    print(("Epsiode: {}, Reward: {}, Loss: {}")
-                          .format(len(reward_list)//hyperparams["nenv"],
-                                  np.mean(reward_list[-100:]), loss),
-                          end="\r")
+                        logger.scalar(loss, env="warehouse_" + suffix,
+                                      win="loss")
+                    # print(("Epsiode: {}, Reward: {}, Loss: {}")
+                    #       .format(len(reward_list)//hyperparams["nenv"],
+                    #               np.mean(reward_list[-100:]), loss),
+                    #       end="\r")
             loss = agent.update(hyperparams["gamma"], hyperparams["beta"])
             if i % 10 == 0 and save_param_path:
                 agent.save_model(save_param_path)

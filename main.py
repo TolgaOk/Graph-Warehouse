@@ -74,15 +74,16 @@ def warehouse_setting(ball_count, balls, n_maps, bucket="B"):
     return worldmaps, pairing, lambda device: adj.to(device)
 
 
-if __name__ == "__main__":
-
+def run(index=0, test=False):
     balls = "bcd"
     bucket = "B"
     train_ball_counts = {"b": 1}
     test_ball_counts = {"b": 1}
     n_train_maps = 100
     n_test_maps = 1000
-    dir_path = "experiments/grapha2c_maxpool/"
+    dir_path = "experiments/a2c_maxpool_concat/" + str(index) + "/"
+    if not os.path.exists(dir_path):
+        os.makedirs(dir_path, exist_ok=True)
     model_path = dir_path + "param.b"
     hyperparam_path = dir_path + "hyperparam.yaml"
 
@@ -94,17 +95,35 @@ if __name__ == "__main__":
         lr=0.0001,
         beta=0.11,
     )
-    yaml.dump(hyperparams, open(hyperparam_path, "w"))
 
-    # train_worldmaps, train_pairing, train_adj = warehouse_setting(
-    #     train_ball_counts, balls, n_train_maps, bucket=bucket)
-    # train_agent(train_worldmaps, balls, bucket,
-    #             train_pairing, train_adj, hyperparams, model_path)
+    if not test:
+        yaml.dump(hyperparams, open(hyperparam_path, "w"))
 
-    test_worldmaps, test_pairing, test_adj = warehouse_setting(
-        test_ball_counts, balls, n_test_maps, bucket=bucket)
-    results = test_agent(test_worldmaps, balls, bucket,
-                         test_pairing, test_adj, model_path,
-                         render=False, n_test=1000)
-    plt.hist(results)
-    plt.show()
+        train_worldmaps, train_pairing, train_adj = warehouse_setting(
+            train_ball_counts, balls, n_train_maps, bucket=bucket)
+        train_agent(train_worldmaps, balls, bucket,
+                    train_pairing, train_adj, hyperparams,
+                    model_path, suffix=str(index))
+
+    if test:
+        test_worldmaps, test_pairing, test_adj = warehouse_setting(
+            test_ball_counts, balls, n_test_maps, bucket=bucket)
+        results = test_agent(test_worldmaps, balls, bucket,
+                             test_pairing, test_adj, model_path,
+                             render=False, n_test=1000)
+        plt.hist(results)
+        plt.show()
+
+
+if __name__ == "__main__":
+
+    processes = []
+    for i in range(3):
+        process = torch.multiprocessing.Process(target=run, args=(i, False))
+        process.start()
+        processes.append(process)
+
+    for p in processes:
+        p.join()
+
+    run(test=True)
