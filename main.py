@@ -81,7 +81,7 @@ def run(network_class, index=0, test=False):
     balls = "bcd"
     bucket = "B"
     train_ball_counts = {"b": 1}
-    test_ball_counts = {"c": 3, "d": 2}
+    test_ball_counts = {"c": 1}
     n_train_maps = 100
     n_test_maps = 1000
     dir_path = "experiments/Relational_a2c_maxpool_concat/" + str(index) + "/"
@@ -92,11 +92,11 @@ def run(network_class, index=0, test=False):
 
     hyperparams = dict(
         gamma=0.99,
-        nenv=1,
+        nenv=8,
         nstep=20,
         n_timesteps=200000,
         lr=0.0001,
-        beta=0.11,
+        beta=0.03,
     )
 
     if not test:
@@ -131,7 +131,7 @@ if __name__ == "__main__":
 
     NETWORK_CLASS = RelationalNet
     processes = []
-    for i in range(1):
+    for i in range(5):
         process = torch.multiprocessing.Process(
             target=run, args=(NETWORK_CLASS, i, False))
         process.start()

@@ -78,14 +78,9 @@ class RelationalModule(torch.nn.Module):
             attened_values.reshape(bs*height*width, -1))
         output = activation(output)
 
-        # feature = torch.mean(output.reshape(bs, height, width, -1) + input,
-        #                      dim=(1, 2))
-        # feature = self.layer_norm(feature)
-        # return feature
-
         feature = output.reshape(bs, height, width, -1) + input
         feature = self.instance_norm(feature.permute(0, 3, 1, 2))
-        return feature
+        return feature, attn_weights
 
     def param_init(self, module):
         gain = torch.nn.init.calculate_gain("relu")
@@ -124,12 +119,15 @@ class RelationalNet(torch.nn.Module):
             torch.nn.Linear(256, 1)
         )
         self.apply(self.param_init)
+        self.attn_weights = None
 
     def forward(self, state):
         bs = state.shape[0]
         state = self.convnet(state)
 
-        feature = self.relational_module(state, torch.nn.functional.relu)
+        feature, attn_weights = self.relational_module(
+            state, torch.nn.functional.relu)
+        self.attn_weights = attn_weights
         feature = self.pool(feature)
         feature = feature.reshape(bs, -1)
 
