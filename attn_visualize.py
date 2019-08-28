@@ -204,7 +204,7 @@ if __name__ == "__main__":
     BALLS = "bcd"
     N_MAPS = 100
     BUCKET = "B"
-    PARAM_PATH = "experiments/Relational_a2c_maxpool_concat/0/param.b"
+    PARAM_PATH = "experiments/Relational_a2c_maxpool_concat2/0/param.b"
     worldmaps, pairing, _ = warehouse_setting(
         BALL_COUNT, BALLS, N_MAPS, BUCKET)
     kwargs = dict(

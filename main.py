@@ -84,7 +84,7 @@ def run(network_class, index=0, test=False):
     test_ball_counts = {"c": 1}
     n_train_maps = 100
     n_test_maps = 1000
-    dir_path = "experiments/Relational_a2c_maxpool_concat/" + str(index) + "/"
+    dir_path = "experiments/Relational_a2c_maxpool_concat3/" + str(index) + "/"
     if not os.path.exists(dir_path):
         os.makedirs(dir_path, exist_ok=True)
     model_path = dir_path + "param.b"
@@ -131,7 +131,7 @@ if __name__ == "__main__":
 
     NETWORK_CLASS = RelationalNet
     processes = []
-    for i in range(5):
+    for i in range(1):
         process = torch.multiprocessing.Process(
             target=run, args=(NETWORK_CLASS, i, False))
         process.start()

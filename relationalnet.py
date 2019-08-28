@@ -3,7 +3,7 @@ import math
 
 
 class RelationalModule(torch.nn.Module):
-    def __init__(self, in_feature, dim_value, dim_key, n_heads):
+    def __init__(self, in_feature, dim_value, dim_key, n_heads, mapsize):
         super().__init__()
         assert n_heads <= dim_key, ("Argment <n_heads> should not be "
                                     "greater than argument <dim_key>")
@@ -17,10 +17,13 @@ class RelationalModule(torch.nn.Module):
         self.in_feature = in_feature
         self.dim_key = dim_key
         self.query_fc = torch.nn.Linear(in_feature + 2, dim_key)
+        self.query_layernorm = torch.nn.LayerNorm((mapsize*mapsize, dim_key//n_heads))
         self.key_fc = torch.nn.Linear(in_feature + 2, dim_key)
+        self.key_layernorm = torch.nn.LayerNorm((mapsize*mapsize, dim_key//n_heads))
         self.value_fc = torch.nn.Linear(in_feature + 2, dim_value)
+        self.value_layernorm = torch.nn.LayerNorm((mapsize*mapsize, dim_value//n_heads))
         self.entitywise_fc = torch.nn.Linear(dim_value, in_feature)
-        self.layer_norm = torch.nn.LayerNorm(in_feature)
+        self.layer_norm = torch.nn.LayerNorm(mapsize, mapsize, in_feature)
         self.instance_norm = torch.nn.InstanceNorm2d(in_feature)
         self.apply(self.param_init)
 
@@ -48,19 +51,19 @@ class RelationalModule(torch.nn.Module):
         query = query.reshape(bs, height*width, self.n_heads, -1)
         query = query.permute(0, 2, 1, 3)
         query = query.reshape(bs*self.n_heads, height*width, -1)
-        query = activation(query)
+        query = activation(self.query_layernorm(query))
         # (B, S**2, F_k)
         key = self.key_fc(coord_input)
         key = key.reshape(bs, height*width, self.n_heads, -1)
         key = key.permute(0, 2, 1, 3)
         key = key.reshape(bs*self.n_heads, height*width, -1)
-        key = activation(key)
+        key = activation(self.key_layernorm(key))
         # (B, S**2, F_v)
         value = self.value_fc(coord_input)
         value = value.reshape(bs, height*width, self.n_heads, -1)
         value = value.permute(0, 2, 1, 3)
         value = value.reshape(bs*self.n_heads, height*width, -1)
-        value = activation(value)
+        value = activation(self.value_layernorm(value))
 
         dim_key_sqrt = math.sqrt(self.dim_key)
         # (B*H, S**2, S**2)
@@ -79,7 +82,9 @@ class RelationalModule(torch.nn.Module):
         output = activation(output)
 
         feature = output.reshape(bs, height, width, -1) + input
-        feature = self.instance_norm(feature.permute(0, 3, 1, 2))
+        feature = feature.permute(0, 3, 1, 2)
+        feature = self.layer_norm(feature)
+
         return feature, attn_weights
 
     def param_init(self, module):
@@ -104,7 +109,8 @@ class RelationalNet(torch.nn.Module):
         )
 
         # Relational
-        self.relational_module = RelationalModule(32, 16, 16, n_heads=4)
+        self.relational_module = RelationalModule(32, 16, 16,
+                                                  n_heads=4, mapsize=mapsize)
         self.pool = torch.nn.MaxPool2d(mapsize)
 
         # Output
