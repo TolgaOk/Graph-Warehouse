@@ -12,7 +12,7 @@ from relationalnet import RelationalNet
 from vanillanet import ConvModel
 
 
-def generate_maps(ball_count):
+def generate_maps(ball_count, buckets):
     """
         ball_count: dictionary of characters and number of occurence
     """
@@ -33,12 +33,13 @@ def generate_maps(ball_count):
                               for line in worldmap])
     height, width = empty_spaces.shape
     possible_locations = np.argwhere(empty_spaces.reshape(-1) == 32)
-    n_objects = 2 + sum(v for ball, v in objects.items())
+    n_objects = 1 + len(buckets) + sum(v for ball, v in objects.items())
     locations = np.random.choice(possible_locations.reshape(-1),
                                  size=n_objects, replace=False)
     index = 0
     objects["P"] = 1
-    objects["B"] = 1
+    for bucket in buckets:
+        objects[bucket] = 1
     for char, occurence in objects.items():
         for i in range(occurence):
             y = locations[index] // width
@@ -50,41 +51,51 @@ def generate_maps(ball_count):
     return worldmap
 
 
-def warehouse_setting(ball_count, balls, n_maps, bucket="B"):
+def warehouse_setting(ball_count, balls, n_maps, pairing):
     assert isinstance(ball_count, dict)
     assert isinstance(balls, str)
     n_objects = 3 + len(balls)
     n_edge = 3
     adj = torch.zeros(n_edge, n_objects, n_objects)
+    objs = {"#": 0}
+    for bucket in sorted(pairing.keys()):
+        objs[bucket] = len(objs)
+    objs["P"] = len(objs)
+    for ball in sorted(balls):
+        objs[ball] = len(objs)
+
     ordered_balls = {k: i for i, k in enumerate(sorted(balls))}
+    ordered_buckets = {k: i for i, k in enumerate(sorted(pairing.keys()))}
 
     # "#, B, P, b, c, d"
     # Impassible edges
-    adj[0][2, 0] = 1.0  # Player to wall
-    adj[0][2, 1] = 1.0  # Player to bucket
+    adj[0][objs["P"], objs["#"]] = 1.0  # Player to wall
+    for bucket in pairing.keys():
+        adj[0][objs["P"], objs[bucket]]
     # Collectable edges
     for ball in ball_count.keys():
-        adj[1][2, ordered_balls[ball]+3] = 1.0  # Player to ball
-    # Bucket to ball edges
-    for ball in ball_count.keys():
-        adj[2][ordered_balls[ball]+3, 1] = 1.0
+        adj[1][objs["P"], objs[ball]] = 1.0  # Player to ball
+    # Ball to bucket edges
+    for bucket, balls in pairing.items():
+        for ball in balls:
+            adj[2][objs[ball], objs[bucket]]
 
-    pairing = {
-        bucket: [char for char in ball_count.keys()],
-    }
-
-    worldmaps = [generate_maps(ball_count) for i in range(n_maps)]
+    worldmaps = [generate_maps(ball_count, pairing.keys())
+                 for i in range(n_maps)]
     return worldmaps, pairing, lambda device: adj.to(device)
 
 
 def run(network_class, index=0, test=False):
-    balls = "bcd"
-    bucket = "B"
-    train_ball_counts = {"b": 1}
-    test_ball_counts = {"c": 1}
+    balls = "abcde"
+    buckets = "ABCDE"
+    train_pairing = {"A": ["a"], "B": ["b"], "C": ["c"], "D": ["d"]}
+    test_pairing = {"D": ["a"], "E": ["e"]}
+    train_ball_counts = {"a": 1, "b": 1, "c": 1, "d": 1}
+    test_ball_counts = {"a": 1, "e": 1}
     n_train_maps = 100
     n_test_maps = 1000
-    dir_path = "experiments/Relational_a2c_maxpool_concat3/" + str(index) + "/"
+    dir_path = "experiments/Relational_a2c_maxpool_concat_dropout/" + \
+        str(index) + "/"
     if not os.path.exists(dir_path):
         os.makedirs(dir_path, exist_ok=True)
     model_path = dir_path + "param.b"
@@ -97,23 +108,24 @@ def run(network_class, index=0, test=False):
         n_timesteps=200000,
         lr=0.0001,
         beta=0.03,
+        attn_beta=0,
     )
 
     if not test:
         yaml.dump(hyperparams, open(hyperparam_path, "w"))
 
         train_worldmaps, train_pairing, train_adj = warehouse_setting(
-            train_ball_counts, balls, n_train_maps, bucket=bucket)
-        train_agent(train_worldmaps, balls, bucket,
+            train_ball_counts, balls, n_train_maps, train_pairing)
+        train_agent(train_worldmaps, balls, buckets,
                     train_pairing, train_adj, hyperparams,
                     network_class, model_path, suffix=str(index))
 
     if test:
         test_worldmaps, test_pairing, test_adj = warehouse_setting(
-            test_ball_counts, balls, n_test_maps, bucket=bucket)
-        results, success_list = test_agent(test_worldmaps, balls, bucket,
+            test_ball_counts, balls, n_test_maps, test_pairing)
+        results, success_list = test_agent(test_worldmaps, balls, buckets,
                                            test_pairing, test_adj, model_path,
-                                           network_class, render=False,
+                                           network_class, render=True,
                                            n_test=100)
         plt.subplot(211)
         plt.hist(results, bins=20, rwidth=0.30)
@@ -140,4 +152,4 @@ if __name__ == "__main__":
     for p in processes:
         p.join()
 
-    run(NETWORK_CLASS, index=2, test=True)
+    run(NETWORK_CLASS, index=0, test=True)

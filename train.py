@@ -8,7 +8,7 @@ from environment import VariationalWarehouse
 from knowledgenet import GraphDqnModel
 
 
-def train_agent(worldmaps, balls, bucket, relations,
+def train_agent(worldmaps, balls, buckets, relations,
                 adjacency, hyperparams, network_class,
                 save_param_path=None, suffix="0"):
     logger = logger_config()
@@ -16,7 +16,7 @@ def train_agent(worldmaps, balls, bucket, relations,
     device = "cuda"
 
     env = VariationalWarehouse(
-        balls, bucket, pairing=relations, worldmaps=worldmaps)
+        balls, buckets, pairing=relations, worldmaps=worldmaps)
     in_channel, mapsize, _ = env.observation_space.shape
     n_act = 4
     if network_class == GraphDqnModel:
@@ -34,7 +34,7 @@ def train_agent(worldmaps, balls, bucket, relations,
 
     penv = ParallelEnv(hyperparams["nenv"],
                        lambda: VariationalWarehouse(balls,
-                                                    bucket,
+                                                    buckets,
                                                     pairing=relations,
                                                     worldmaps=worldmaps))
     eps_rewards = np.zeros((hyperparams["nenv"], 1))
@@ -50,6 +50,8 @@ def train_agent(worldmaps, balls, bucket, relations,
         for i in range(hyperparams["n_timesteps"]//hyperparams["nstep"]):
             for j in range(hyperparams["nstep"]):
                 action, log_prob, value, entropy = agent(state)
+                entropy = (entropy - agent.network.attn_entropy.sum() *
+                           hyperparams["attn_beta"])
                 action = action.unsqueeze(1).cpu().numpy()
                 next_state, reward, done = penv.step(action)
                 next_state = to_torch(next_state)

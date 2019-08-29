@@ -3,7 +3,8 @@ import math
 
 
 class RelationalModule(torch.nn.Module):
-    def __init__(self, in_feature, dim_value, dim_key, n_heads, mapsize):
+    def __init__(self, in_feature, dim_value, dim_key, n_heads,
+                 mapsize, dropout=0.1):
         super().__init__()
         assert n_heads <= dim_key, ("Argment <n_heads> should not be "
                                     "greater than argument <dim_key>")
@@ -17,14 +18,18 @@ class RelationalModule(torch.nn.Module):
         self.in_feature = in_feature
         self.dim_key = dim_key
         self.query_fc = torch.nn.Linear(in_feature + 2, dim_key)
-        self.query_layernorm = torch.nn.LayerNorm((mapsize*mapsize, dim_key//n_heads))
+        self.query_layernorm = torch.nn.LayerNorm(
+            (mapsize*mapsize, dim_key//n_heads))
         self.key_fc = torch.nn.Linear(in_feature + 2, dim_key)
-        self.key_layernorm = torch.nn.LayerNorm((mapsize*mapsize, dim_key//n_heads))
+        self.key_layernorm = torch.nn.LayerNorm(
+            (mapsize*mapsize, dim_key//n_heads))
         self.value_fc = torch.nn.Linear(in_feature + 2, dim_value)
-        self.value_layernorm = torch.nn.LayerNorm((mapsize*mapsize, dim_value//n_heads))
+        self.value_layernorm = torch.nn.LayerNorm(
+            (mapsize*mapsize, dim_value//n_heads))
         self.entitywise_fc = torch.nn.Linear(dim_value, in_feature)
         self.layer_norm = torch.nn.LayerNorm(mapsize, mapsize, in_feature)
         self.instance_norm = torch.nn.InstanceNorm2d(in_feature)
+        self.dropout = torch.nn.Dropout(dropout)
         self.apply(self.param_init)
 
     def forward(self, input, activation=lambda x: x):
@@ -70,6 +75,8 @@ class RelationalModule(torch.nn.Module):
         weights = torch.matmul(query, key.permute(0, 2, 1))/dim_key_sqrt
         attn_weights = torch.nn.functional.softmax(weights, dim=-1)
 
+        attn_entropy = -(attn_weights*weights).sum(-1)
+
         # (B*H, S**2, F_v//H)
         attened_values = torch.matmul(attn_weights, value)
         attened_values = attened_values.reshape(
@@ -80,12 +87,13 @@ class RelationalModule(torch.nn.Module):
         output = self.entitywise_fc(
             attened_values.reshape(bs*height*width, -1))
         output = activation(output)
-
+        
+        output = self.dropout(output)
         feature = output.reshape(bs, height, width, -1) + input
         feature = feature.permute(0, 3, 1, 2)
         feature = self.layer_norm(feature)
 
-        return feature, attn_weights
+        return feature, attn_weights, attn_entropy
 
     def param_init(self, module):
         gain = torch.nn.init.calculate_gain("relu")
@@ -131,9 +139,12 @@ class RelationalNet(torch.nn.Module):
         bs = state.shape[0]
         state = self.convnet(state)
 
-        feature, attn_weights = self.relational_module(
+        feature, attn_weights, attn_entropy = self.relational_module(
             state, torch.nn.functional.relu)
+        # ---------------------------
         self.attn_weights = attn_weights
+        self.attn_entropy = attn_entropy
+        # ---------------------------
         feature = self.pool(feature)
         feature = feature.reshape(bs, -1)
 

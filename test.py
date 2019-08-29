@@ -7,12 +7,12 @@ from rl_pysc2.agents.a2c.model import A2C
 from knowledgenet import GraphDqnModel
 
 
-def test_agent(worldmaps, balls, bucket, relations,
+def test_agent(worldmaps, balls, buckets, relations,
                adjacency, load_param_path,
                network_class, render=True, n_test=1):
     device = "cuda"
 
-    env = VariationalWarehouse(balls, bucket,
+    env = VariationalWarehouse(balls, buckets,
                                worldmaps=worldmaps, pairing=relations)
     in_channel, mapsize, _ = env.observation_space.shape
     n_act = 4
