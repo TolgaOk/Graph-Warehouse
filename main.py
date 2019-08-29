@@ -54,7 +54,7 @@ def generate_maps(ball_count, buckets):
 def warehouse_setting(ball_count, balls, n_maps, pairing):
     assert isinstance(ball_count, dict)
     assert isinstance(balls, str)
-    n_objects = 3 + len(balls)
+    n_objects = 2 + len(pairing.keys()) + len(balls)
     n_edge = 3
     adj = torch.zeros(n_edge, n_objects, n_objects)
     objs = {"#": 0}
@@ -118,7 +118,8 @@ def run(network_class, index=0, test=False):
             train_ball_counts, balls, n_train_maps, train_pairing)
         train_agent(train_worldmaps, balls, buckets,
                     train_pairing, train_adj, hyperparams,
-                    network_class, model_path, suffix=str(index))
+                    network_class, model_path, suffix=str(index),
+                    loadstates=True)
 
     if test:
         test_worldmaps, test_pairing, test_adj = warehouse_setting(

@@ -10,7 +10,7 @@ from knowledgenet import GraphDqnModel
 
 def train_agent(worldmaps, balls, buckets, relations,
                 adjacency, hyperparams, network_class,
-                save_param_path=None, suffix="0"):
+                save_param_path=None, suffix="0", loadstates=False):
     logger = logger_config()
 
     device = "cuda"
@@ -45,13 +45,15 @@ def train_agent(worldmaps, balls, buckets, relations,
         return torch.from_numpy(array).to(device).float()
     logger.hyperparameters(hyperparams, win="Hyperparameters")
 
+    if loadstates:
+        agent.load_model(save_param_path)
+
     with penv as state:
         state = to_torch(state)
         for i in range(hyperparams["n_timesteps"]//hyperparams["nstep"]):
             for j in range(hyperparams["nstep"]):
                 action, log_prob, value, entropy = agent(state)
-                entropy = (entropy - agent.network.attn_entropy.sum() *
-                           hyperparams["attn_beta"])
+                entropy = entropy
                 action = action.unsqueeze(1).cpu().numpy()
                 next_state, reward, done = penv.step(action)
                 next_state = to_torch(next_state)

@@ -19,7 +19,7 @@ class AttentionVisualizer():
 
     DEFAULT_COLOR = "#CCCCCC"
 
-    def __init__(self, cell_size, colors, cmap, balls, bucket,
+    def __init__(self, cell_size, colors, cmap, balls, buckets,
                  worldmaps, pairing, load_param_path,
                  device="cuda", border_ratio=0.05):
         self.root = tkinter.Tk()
@@ -29,7 +29,7 @@ class AttentionVisualizer():
             ObservationCropper(),
         ]
 
-        self.initial_reset(balls, bucket,
+        self.initial_reset(balls, buckets,
                            worldmaps, pairing,
                            load_param_path, device)
 
@@ -60,7 +60,7 @@ class AttentionVisualizer():
         reset_button = tkinter.Button(
             self.root,
             text="Reset",
-            command=self.reset(balls, bucket,
+            command=self.reset(balls, buckets,
                                worldmaps, pairing,
                                load_param_path, device))
         reset_button.pack()
@@ -77,10 +77,10 @@ class AttentionVisualizer():
 
         # TODO: Add hover callback
 
-    def _init_model(self, balls, bucket,
+    def _init_model(self, balls, buckets,
                     worldmaps, pairing,
                     load_param_path, device):
-        env = VariationalWarehouse(balls, bucket, worldmaps, pairing)
+        env = VariationalWarehouse(balls, buckets, worldmaps, pairing)
         in_channel, mapsize, _ = env.observation_space.shape
         n_act = 4
         network = RelationalNet(in_channel, mapsize, n_act)
@@ -138,10 +138,10 @@ class AttentionVisualizer():
                                    fill=color)
         self.root.update()
 
-    def initial_reset(self, balls, bucket,
+    def initial_reset(self, balls, buckets,
                       worldmaps, pairing,
                       load_param_path, device):
-        agent, env = self._init_model(balls, bucket,
+        agent, env = self._init_model(balls, buckets,
                                       worldmaps, pairing,
                                       load_param_path, device)
         self.agent = agent
@@ -154,11 +154,11 @@ class AttentionVisualizer():
         for cropper in self.croppers:
             cropper.set_engine(self.env.game)
 
-    def reset(self, balls, bucket,
+    def reset(self, balls, buckets,
               worldmaps, pairing,
               load_param_path, device):
         def reset_callback():
-            self.initial_reset(balls, bucket,
+            self.initial_reset(balls, buckets,
                                worldmaps, pairing,
                                load_param_path, device)
             board = self.env.observation
@@ -200,17 +200,18 @@ class AttentionVisualizer():
         print(torch.sum(attn_row))
 
 if __name__ == "__main__":
+    PAIRING = {"B": ["b"]}
     BALL_COUNT = {"b": 1}
-    BALLS = "bcd"
+    BALLS = "abcde"
+    BUCKETS = "ABCDE"
     N_MAPS = 100
-    BUCKET = "B"
-    PARAM_PATH = "experiments/Relational_a2c_maxpool_concat_attn_entropy/0/param.b"
+    PARAM_PATH = "experiments/Relational_a2c_maxpool_concat_dropout/0/param.b"
     worldmaps, pairing, _ = warehouse_setting(
-        BALL_COUNT, BALLS, N_MAPS, BUCKET)
+        BALL_COUNT, BALLS, N_MAPS, PAIRING)
     kwargs = dict(
         colors=None,
         balls=BALLS,
-        bucket=BUCKET,
+        buckets=BUCKETS,
         load_param_path=PARAM_PATH,
         cell_size=40,
         cmap="viridis",
