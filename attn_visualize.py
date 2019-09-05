@@ -55,8 +55,6 @@ class AttentionVisualizer():
 
         self.cell_list = self._init_map()
 
-        # TODO: Add button for step and bind
-        # TODO: Add button for reset and bind
         reset_button = tkinter.Button(
             self.root,
             text="Reset",
@@ -74,8 +72,6 @@ class AttentionVisualizer():
         step_button.pack()
         step_button.place(x=cell_size, y=cell_size*3,
                           height=cell_size, width=cell_size*3)
-
-        # TODO: Add hover callback
 
     def _init_model(self, balls, buckets,
                     worldmaps, pairing,
@@ -110,11 +106,11 @@ class AttentionVisualizer():
                                                   y*self.cell_size + b_h,
                                                   (x+1)*self.cell_size - b_w,
                                                   (y+1)*self.cell_size - b_h)
-                     for x, y in product(range(global_col, cols + global_col),
-                                         range(rows))]
+                     for y, x in product(range(rows),
+                                         range(global_col, cols + global_col))]
             cell_list.append(cells)
             global_col += (1 + cropper.cols)
-        
+
         for cell in cell_list[0]:
             self.canvas.tag_bind(cell, "<Enter>", self.hover_callback)
             self.canvas.tag_bind(cell, "<Leave>", lambda event: None)
@@ -123,7 +119,7 @@ class AttentionVisualizer():
 
     def _paint_environment(self, board):
         cropped_board = self.croppers[0].crop(board).board
-        for i, v in enumerate(cropped_board.flatten("F")):
+        for i, v in enumerate(cropped_board.flatten("C")):
             self.canvas.itemconfig(self.cell_list[0][i], fill=self.colors[v])
         self.root.update()
 
@@ -131,8 +127,8 @@ class AttentionVisualizer():
         attn_cmap = plt.cm.get_cmap(self.cmap, 100)
         if isinstance(attention_row, torch.Tensor):
             attention_row = attention_row.cpu().detach().numpy()
-        for i, v in enumerate(attention_row.flatten("F")):
-            rgb = attn_cmap(int(v*100))[:3]
+        for i, v in enumerate(attention_row.flatten("C")):
+            rgb = attn_cmap(int(v*1000))[:3]
             color = matplotlib.colors.rgb2hex(rgb)
             self.canvas.itemconfig(self.cell_list[1][i],
                                    fill=color)
@@ -168,8 +164,6 @@ class AttentionVisualizer():
 
         return reset_callback
 
-    # Bind to step button
-    # Color envrionment map
     def step(self, device):
 
         def to_torch(array):
@@ -188,8 +182,6 @@ class AttentionVisualizer():
             self._paint_environment(board)
         return step_callback
 
-    # Bind to hover
-    # color attention map
     def hover_callback(self, event):
         grid_x = (event.x - self.width_offset)//self.cell_size
         grid_y = event.y//self.cell_size
@@ -199,13 +191,14 @@ class AttentionVisualizer():
         self._paint_attention(attn_row)
         print(torch.sum(attn_row))
 
+
 if __name__ == "__main__":
-    PAIRING = {"B": ["b"]}
-    BALL_COUNT = {"b": 1}
-    BALLS = "abcde"
-    BUCKETS = "ABCDE"
+    PAIRING = {"A": ["a"]}
+    BALL_COUNT = {"a": 1}
+    BALLS = "ae"
+    BUCKETS = "AE"
     N_MAPS = 100
-    PARAM_PATH = "experiments/Relational_a2c_maxpool_concat_dropout/0/param.b"
+    PARAM_PATH = "experiments/Relational_a2c_maxpool_concat_1x1/0/param.b"
     worldmaps, pairing, _ = warehouse_setting(
         BALL_COUNT, BALLS, N_MAPS, PAIRING)
     kwargs = dict(
