@@ -91,7 +91,7 @@ def run(network_class, index=0, test=False):
     test_ball_counts = {"a": 1}
     n_train_maps = 100
     n_test_maps = 1000
-    dir_path = ("experiments/OurAttnNet_a2c_maxpool/" +
+    dir_path = ("experiments/OurAttnNet_a2c_maxpool_fourier/" +
                 str(index) + "/")
     if not os.path.exists(dir_path):
         os.makedirs(dir_path, exist_ok=True)
@@ -102,9 +102,9 @@ def run(network_class, index=0, test=False):
         gamma=0.99,
         nenv=8,
         nstep=20,
-        n_timesteps=200000,
+        n_timesteps=2000000,
         lr=0.0001,
-        beta=0.03,
+        beta=0.06,
         attn_beta=0,
     )
 
@@ -123,7 +123,7 @@ def run(network_class, index=0, test=False):
             test_ball_counts, balls, n_test_maps, test_pairing)
         results, success_list = test_agent(test_worldmaps, balls, buckets,
                                            test_pairing, test_adj, model_path,
-                                           network_class, render=True,
+                                           network_class, render=False,
                                            n_test=100)
         plt.subplot(211)
         plt.hist(results, bins=20, rwidth=0.30)
@@ -140,14 +140,13 @@ def run(network_class, index=0, test=False):
 if __name__ == "__main__":
     NETWORK_CLASS = OurAttnNet
 
-    processes = []
-    for i in range(1):
-        process = torch.multiprocessing.Process(
-            target=run, args=(NETWORK_CLASS, i, False))
-        process.start()
-        processes.append(process)
+    #processes = []
+    #for i in range(3):
+     #   process = torch.multiprocessing.Process(
+      #      target=run, args=(NETWORK_CLASS, i, False))
+       # process.start()
+        #processes.append(process)
 
-    for p in processes:
-        p.join()
-
-    run(NETWORK_CLASS, index=0, test=True)
+    #for p in processes:
+        #p.join()
+    run(NETWORK_CLASS, index=1, test=True)

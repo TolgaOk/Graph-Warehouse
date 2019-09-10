@@ -1,29 +1,60 @@
 import torch
 import math
+from itertools import product
+from numpy import pi
 
 
 class VisualAttn(torch.nn.Module):
 
-    def __init__(self, in_channel, n_entity):
+    def __init__(self, in_channel, n_entity, mapsize):
         super().__init__()
+        self.fourier_bases = FourierBases([1, 2, 3, 4],
+                                          [1, 2, 3, 4],
+                                          mapsize,
+                                          mapsize)
         self.pre_conv = torch.nn.Conv2d(
-            in_channel, out_channels=in_channel,
+            in_channel+self.fourier_bases.channel_size, out_channels=in_channel,
             kernel_size=3, padding=1)
         self.visattn_conv = torch.nn.Conv2d(
             in_channel, out_channels=n_entity,
             kernel_size=3, padding=1)
         self.conv3d = torch.nn.Conv3d(
-            in_channel, in_channel,
+            in_channel+self.fourier_bases.channel_size, in_channel,
             kernel_size=(1, 1, 1), padding=(0, 1, 1))
 
     def forward(self, state):
+        state = self.fourier_bases.apply(state)
         x = torch.relu(self.pre_conv(state))
         attn = torch.sigmoid(self.visattn_conv(x))
-
         x = torch.einsum("bfyx, beyx->bfeyx", state, attn)
         x = torch.relu(self.conv3d(x)).permute(0, 2, 1, 3, 4)
         x = x.mean((-1, -2))
         return x, attn
+
+
+class FourierBases:
+
+    def __init__(self, u, v, height, width, device="cpu"):
+        y_coords, x_coords = torch.meshgrid(
+            torch.linspace(-1, 1, height),
+            torch.linspace(-1, 1, width))
+        
+        even_bases = torch.stack([torch.cos(pi*x_coords*u_)*torch.cos(pi*y_coords*v_) for v_, u_ in product(v, u)])
+        odd_bases = torch.stack([torch.sin(pi*x_coords*u_)*torch.sin(pi*y_coords*v_) for v_, u_ in product(v, u)])
+
+        self._bases = torch.cat([even_bases, odd_bases], dim=0).to(device)
+        self.bases = self._bases.unsqueeze(0)
+
+    def apply(self, state):
+        bs, channel, height, width = state.shape
+        device = state.device
+        if self.bases.shape[0] != bs or device != self.bases.device:
+            self.bases = self._bases.unsqueeze(0).repeat(bs, 1, 1, 1).to(device)
+        return torch.cat([state, self.bases], dim=1)
+
+    @property
+    def channel_size(self):
+        return self._bases.shape[0]
 
 
 class SelfAttn(torch.nn.Module):
@@ -68,8 +99,8 @@ class SelfAttn(torch.nn.Module):
         attn = torch.einsum("bhef, bhxf->bhxe", key, query)
         attn = torch.nn.functional.softmax(attn/qkv_dim_sqrt, dim=-1)
         attned_value = torch.einsum("bhxe, bhef->bxhf", attn, value)
+       
         features = attned_value.reshape(bs, n_entity, self.qkv_dim)
-
         features = torch.relu(self.entitywise_fc(features))
         return features
 
@@ -79,11 +110,11 @@ class SelfAttn(torch.nn.Module):
 
 class OurAttnModule(torch.nn.Module):
 
-    def __init__(self, in_channel, out_channel, qkv_dim,  n_entity, n_heads):
+    def __init__(self, in_channel, out_channel, qkv_dim,  n_entity, n_heads, mapsize):
         super().__init__()
         self.conv = torch.nn.Conv2d(in_channel, out_channel,
                                     kernel_size=3, padding=1)
-        self.visual_attn = VisualAttn(out_channel, n_entity)
+        self.visual_attn = VisualAttn(out_channel, n_entity, mapsize)
         self.self_attn = SelfAttn(out_channel, n_entity, qkv_dim, n_heads)
 
         self.instance_norm = torch.nn.InstanceNorm2d(qkv_dim)
@@ -109,7 +140,9 @@ class OurAttnNet(torch.nn.Module):
         )
 
         self.attn_module = OurAttnModule(32, 32, 16,
-                                         n_entity=n_entity, n_heads=n_heads)
+                                         n_entity=n_entity,
+                                         n_heads=n_heads,
+                                         mapsize=mapsize)
 
         self.policy = torch.nn.Sequential(
             torch.nn.Linear(32, 256),
@@ -158,5 +191,3 @@ if __name__ == "__main__":
 
     net = OurAttnNet(in_channel, None, n_act, n_entity, n_heads)
     # layer = OurAttnModule(in_channel, out_channel, qkv_dim, n_entity, n_heads)
-
-    print(net(state)[0].shape)
