@@ -83,15 +83,19 @@ def warehouse_setting(ball_count, balls, n_maps, pairing):
 
 
 def run(network_class, index=0, test=False):
-    balls = "abcde"
-    buckets = "ABCDE"
+    balls = "bcd"
+    buckets = "B"
     train_pairing = {"A": ["a"], "B": ["b"]}
-    test_pairing = {"A": ["a"]}
+    test_pairing = {"B": ["b"]}
     train_ball_counts = {"a": 1, "b": 1}
-    test_ball_counts = {"a": 1}
+    test_ball_counts = {"b": 1}
     n_train_maps = 100
     n_test_maps = 1000
+<<<<<<< HEAD
     dir_path = ("experiments/OurAttnNet_a2c_maxpool_fourier/" +
+=======
+    dir_path = ("experiments/Graph_a2c_maxpool_concat/" +
+>>>>>>> 48ed703517671912deee89c3e25b6d319ace2a17
                 str(index) + "/")
     if not os.path.exists(dir_path):
         os.makedirs(dir_path, exist_ok=True)
@@ -138,8 +142,9 @@ def run(network_class, index=0, test=False):
 
 
 if __name__ == "__main__":
-    NETWORK_CLASS = OurAttnNet
+    NETWORK_CLASS = GraphDqnModel
 
+<<<<<<< HEAD
     #processes = []
     #for i in range(3):
      #   process = torch.multiprocessing.Process(
@@ -150,3 +155,16 @@ if __name__ == "__main__":
     #for p in processes:
         #p.join()
     run(NETWORK_CLASS, index=1, test=True)
+=======
+    # processes = []
+    # for i in range(3):
+    #     process = torch.multiprocessing.Process(
+    #         target=run, args=(NETWORK_CLASS, i, False))
+    #     process.start()
+    #     processes.append(process)
+
+    # for p in processes:
+    #     p.join()
+
+    run(NETWORK_CLASS, index=0, test=True)
+>>>>>>> 48ed703517671912deee89c3e25b6d319ace2a17
