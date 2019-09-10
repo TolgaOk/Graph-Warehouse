@@ -11,86 +11,37 @@ from knowledgenet import GraphDqnModel
 from relationalnet import RelationalNet
 from vanillanet import ConvModel
 from ourattnnet import OurAttnNet
+from environments.warehouse import VariationalWarehouse
 
 
-def generate_maps(ball_count, buckets, width=10, height=10):
-    """
-        ball_count: dictionary of characters and number of occurence
-    """
-    assert isinstance(ball_count, dict), "ball_count must be dictionary"
-    objects = deepcopy(ball_count)
-    worldmap = []
-    worldmap.append("#"*width)
-    for row in range(height - 2):
-        worldmap.append("#" + " "*(width - 2) + "#")
-    worldmap.append("#"*width)
-
-    empty_spaces = np.vstack([np.frombuffer(line.encode("ascii"),
-                                            dtype=np.uint8)
-                              for line in worldmap])
-    height, width = empty_spaces.shape
-    possible_locations = np.argwhere(empty_spaces.reshape(-1) == 32)
-    n_objects = 1 + len(buckets) + sum(v for ball, v in objects.items())
-    locations = np.random.choice(possible_locations.reshape(-1),
-                                 size=n_objects, replace=False)
-    index = 0
-    objects["P"] = 1
-    for bucket in buckets:
-        objects[bucket] = 1
-    for char, occurence in objects.items():
-        for i in range(occurence):
-            y = locations[index] // width
-            x = locations[index] % width
-            row = list(worldmap[y])
-            row[x] = char
-            worldmap[y] = "".join(row)
-            index += 1
-    return worldmap
-
-
-def warehouse_setting(ball_count, balls, n_maps, pairing):
-    assert isinstance(ball_count, dict)
-    assert isinstance(balls, str)
-    n_objects = 2 + len(pairing.keys()) + len(balls)
-    n_edge = 3
-    adj = torch.zeros(n_edge, n_objects, n_objects)
-    objs = {"#": 0}
-    for bucket in sorted(pairing.keys()):
-        objs[bucket] = len(objs)
-    objs["P"] = len(objs)
-    for ball in sorted(balls):
-        objs[ball] = len(objs)
-
-    ordered_balls = {k: i for i, k in enumerate(sorted(balls))}
-    ordered_buckets = {k: i for i, k in enumerate(sorted(pairing.keys()))}
-
-    # "#, B, P, b, c, d"
-    # Impassible edges
-    adj[0][objs["P"], objs["#"]] = 1.0  # Player to wall
-    for bucket in pairing.keys():
-        adj[0][objs["P"], objs[bucket]] = 1.0
-    # Collectable edges
-    for ball in ball_count.keys():
-        adj[1][objs["P"], objs[ball]] = 1.0  # Player to ball
-    # Ball to bucket edges
-    for bucket, balls in pairing.items():
-        for ball in balls:
-            adj[2][objs[ball], objs[bucket]] = 1.0
-
-    worldmaps = [generate_maps(ball_count, pairing.keys())
-                 for i in range(n_maps)]
-    return worldmaps, pairing, lambda device: adj.to(device)
 
 
 def run(network_class, index=0, test=False):
+    ball_count = {"a": 1, "b": 1}
     balls = "bcd"
     buckets = "B"
-    train_pairing = {"A": ["a"], "B": ["b"]}
-    test_pairing = {"B": ["b"]}
-    train_ball_counts = {"a": 1, "b": 1}
-    test_ball_counts = {"b": 1}
-    n_train_maps = 100
-    n_test_maps = 1000
+    pairing = {"A": ["a"], "B": ["b"]}
+    width=10
+    height=10
+    n_worlds = 100
+    worldmaps = [VariationalWarehouse.generate_maps(ball_count,buckets,width,height) 
+                for i in range(n_worlds)]
+    
+    graph = VariationalWarehouse.get_adjacency(ball_count, balls, pairing)
+    environment_kwargs = dict(
+        balls = balls,
+        buckets = buckets,
+        pairing = pairing,
+        worldmaps = worldmaps
+        )
+    
+    model_kwargs = dict(
+        in_channel =  
+        mapsize, 
+        n_act, 
+        n_entity=4, 
+        n_heads=4
+    )
     dir_path = ("experiments/OurAttnNet_a2c_maxpool_fourier/" +
                 str(index) + "/")
     if not os.path.exists(dir_path):

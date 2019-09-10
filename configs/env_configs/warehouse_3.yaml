@@ -1,0 +1,13 @@
+version: 1
+ball_count:
+  a:1
+  b:1
+balls: 'bcd'
+buckets: 'B'
+pairing:
+  A: 
+  -a
+  B:
+  -b
+mapsize: 10
+n_worlds: 100

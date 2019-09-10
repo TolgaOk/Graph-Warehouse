@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 import random
+import yaml
 
 from gymcolab.envs.warehouse import Warehouse
 
@@ -65,3 +66,60 @@ class VariationalWarehouse(Warehouse):
                 worldmap[y] = "".join(row)
                 index += 1
         return worldmap
+
+    @staticmethod
+    def get_adjacency(ball_count, balls, pairing):
+        """
+        Return adjacency
+        """
+        assert isinstance(ball_count, dict)
+        assert isinstance(balls, str)
+        n_objects = 2 + len(pairing.keys()) + len(balls)
+        n_edge = 3
+        adj = torch.zeros(n_edge, n_objects, n_objects)
+        objs = {"#": 0}
+        for bucket in sorted(pairing.keys()):
+            objs[bucket] = len(objs)
+        objs["P"] = len(objs)
+        for ball in sorted(balls):
+            objs[ball] = len(objs)
+
+        ordered_balls = {k: i for i, k in enumerate(sorted(balls))}
+        ordered_buckets = {k: i for i, k in enumerate(sorted(pairing.keys()))}
+
+        # "#, B, P, b, c, d"
+        # Impassible edges
+        adj[0][objs["P"], objs["#"]] = 1.0  # Player to wall
+        for bucket in pairing.keys():
+            adj[0][objs["P"], objs[bucket]] = 1.0
+        # Collectable edges
+        for ball in ball_count.keys():
+            adj[1][objs["P"], objs[ball]] = 1.0  # Player to ball
+        # Ball to bucket edges
+        for bucket, balls in pairing.items():
+            for ball in balls:
+                adj[2][objs[ball], objs[bucket]] = 1.0
+
+        return adj
+    
+    @staticmethod
+    def prep_env(path):
+        data = yaml.load(open(path),"r")
+        worldmaps = [VariationalWarehouse.generate_maps(data["ball_count"], 
+                                                        data["buckets"], 
+                                                        data["mapsize"], data["mapsize"]) 
+                                                        for i in range(data["n_worlds"])]
+        
+        graph = VariationalWarehouse.get_adjacency(data["ball_count"], 
+                                                   data["balls"], data["pairing"])
+        n_objects = 2 + len(data["pairing"].keys()) + len(data["balls"])
+        environment_kwargs = dict(
+            graph = graph,
+            in_channel = n_objects,
+            mapsize = data["mapsize"],
+            balls = data["balls"],
+            buckets = data["buckets"],
+            pairing = data["pairing"],
+            worldmaps = data["worldmaps"],
+            )
+        return environment_kwargs

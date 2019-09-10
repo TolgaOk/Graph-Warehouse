@@ -7,7 +7,6 @@ import os
 dict(
     env_kwargs={},
     env_class= ?,
-    model_structure= ?,
     model_kwargs= ?,
     model_params= ?,
     model_class= ??,
