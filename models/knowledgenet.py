@@ -29,36 +29,36 @@ class EdgeGraphConv(torch.nn.Module):
         return output
 
 
-class GraphDqnModel(torch.nn.Module):
-    def __init__(self, n_edge, n_node, mapsize, n_act, adjacency):
+class GraphA2C(torch.nn.Module):
+    def __init__(self, n_edge, n_node, mapsize, n_act, adjacency, eg_size, kg_size, dense_in_channel, dense_size):
         super().__init__()
 
         self.n_node = n_node
         self.adj = adjacency
 
-        self.egconv1 = EdgeGraphConv(n_edge, n_node, 64)
-        self.egconv2 = EdgeGraphConv(n_edge, 64, 64)
-        self.egconv3 = EdgeGraphConv(n_edge, 64, 64)
-        self.egconv4 = EdgeGraphConv(n_edge, 64, 64)
+        self.egconv1 = EdgeGraphConv(n_edge, n_node, eg_size)
+        self.egconv2 = EdgeGraphConv(n_edge, eg_size, eg_size)
+        self.egconv3 = EdgeGraphConv(n_edge, eg_size, eg_size)
+        self.egconv4 = EdgeGraphConv(n_edge, eg_size, eg_size)
 
-        self.kgconv1 = torch.nn.Conv2d(64, 64, 3, padding=1)
-        self.kgconv2 = torch.nn.Conv2d(64, 64, 1, padding=0)
-        self.kgconv3 = torch.nn.Conv2d(64, 32, 3, padding=1)
-        self.kgconv4 = torch.nn.Conv2d(64, 32, 1, padding=0)
+        self.kgconv1 = torch.nn.Conv2d(kg_size, kg_size, 3, padding=1)
+        self.kgconv2 = torch.nn.Conv2d(kg_size, kg_size, 1, padding=0)
+        self.kgconv3 = torch.nn.Conv2d(kg_size, dense_in_channel, 3, padding=1)
+        self.kgconv4 = torch.nn.Conv2d(kg_size, dense_in_channel, 1, padding=0)
 
-        self.instance_norm = torch.nn.InstanceNorm2d(64)
-        init_weight = torch.rand(64, 64)
+        self.instance_norm = torch.nn.InstanceNorm2d(dense_in_channel)
+        init_weight = torch.rand(kg_size, kg_size)
         self.pool_weight = torch.nn.Parameter(init_weight)
 
         self.policy = torch.nn.Sequential(
-            torch.nn.Linear(32, 256),
+            torch.nn.Linear(dense_in_channel, dense_size),
             torch.nn.ReLU(),
-            torch.nn.Linear(256, n_act)
+            torch.nn.Linear(dense_size, n_act)
         )
         self.value = torch.nn.Sequential(
-            torch.nn.Linear(32, 256),
+            torch.nn.Linear(dense_in_channel, dense_size),
             torch.nn.ReLU(),
-            torch.nn.Linear(256, 1)
+            torch.nn.Linear(dense_size, 1)
         )
 
         self.conv_pool = torch.nn.MaxPool2d(mapsize)
@@ -148,3 +148,7 @@ class GraphDqnModel(torch.nn.Module):
         feature = torch.matmul(feature.sum((-2, -1)), self.pool_weight)
         # feature = torch.relu(feature)
         return feature / (n_occurrence.unsqueeze(-1))
+    
+    def to(self, device):
+        super().to(device)
+        self.adj = self.adj.to(device)

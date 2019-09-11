@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import random
 import yaml
+from copy import deepcopy
 
 from gymcolab.envs.warehouse import Warehouse
 
@@ -104,7 +105,7 @@ class VariationalWarehouse(Warehouse):
     
     @staticmethod
     def prep_env(path):
-        data = yaml.load(open(path),"r")
+        data = yaml.load(open(path,"r"))
         worldmaps = [VariationalWarehouse.generate_maps(data["ball_count"], 
                                                         data["buckets"], 
                                                         data["mapsize"], data["mapsize"]) 
@@ -116,10 +117,11 @@ class VariationalWarehouse(Warehouse):
         environment_kwargs = dict(
             graph = graph,
             in_channel = n_objects,
+            out_channel = 4,
             mapsize = data["mapsize"],
             balls = data["balls"],
             buckets = data["buckets"],
             pairing = data["pairing"],
-            worldmaps = data["worldmaps"],
+            worldmaps = worldmaps,
             )
         return environment_kwargs

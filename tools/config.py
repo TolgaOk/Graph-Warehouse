@@ -2,29 +2,19 @@ import numpy as np
 import pickle
 import yaml
 import os
+import sys
 
-
-dict(
-    env_kwargs={},
-    env_class= ?,
-    model_kwargs= ?,
-    model_params= ?,
-    model_class= ??,
-    hyperparams= ?
-    visdom_args= ?,
-    logger_config=?,
-    schedular_args=?,
-)
+from models.knowledgenet import GraphA2C
 
 
 class Config:
 
-    def __init__(info, overwrite=False):
+    def __init__(self, info, overwrite=False):
         self.info = info
         self.overwrite = overwrite
         
         for key in self.info.keys():
-            setattr(self.info[key], key)
+            setattr(self, key, self.info[key])
 
     def save(self, path):
         """
@@ -33,37 +23,37 @@ class Config:
         """
         if os.path.exists(path) and not self.overwrite:
             raise FileExistsError("Overwrite is False!")
-        elif os.path.exists(path) and self.overwrite:
-            pickle.dump(self.info, open(path + "data.b", "wb"))
-            yaml.dump(self.info_view(), open(path + "info.yaml", "wb"))
-        else:
+        else :
             os.makedirs(path, exist_ok=True)
-            pickle.dump(self.info, open(path, "wb"))
-    
+            pickle.dump(self.info, open(path + "/data.b", "wb"))
+            yaml.dump(self.info_view(), open(path + "/info.yaml", "w"))
     def info_view(self):
         """ Read only informations for serializable objects.
         """
+
         view_dict = dict(
-            env_kwargs=self.env_kwargs,
             env_class=self.env_class,
-            model_structure=self.model_structure,
-            model_kwargs=self.model_kwargs,
+            model_structure=None,
+            model_kwargs={key: value for key, value in self.model_kwargs.items() 
+                          if isinstance(value,(str,int,float,tuple,list,dict)) 
+                          and sys.getsizeof(value)<100},
             model_class=self.model_class,
-            hyperparams=self.hyperparams,
-            schedular_args=self.schedular_args)
+            hyperparams=self.hyperparams)
         return view_dict
         
-    def load(self, path):
+    @staticmethod
+    def load(path):
         """ Load data from the given path. NOte that given argument <param> 
         does not contain the name.
         """
         if not os.path.exists(path):
             raise FileNotFoundError("Info file not found at {}".format(path))
         else:
-            self.info = pickle.load(open(path, "rb"))
-
-    def create_model(self):
+            info = pickle.load(open(path + "/data.b", "rb"))
+        return info
+        
+    def initiate_model(self):
         return self.model_class(self.model_kwargs)
 
-    def create_env(self):
+    def initiate_env(self):
         return self.env_class(self.env_kwargs)

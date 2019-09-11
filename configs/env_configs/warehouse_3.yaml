@@ -1,13 +1,15 @@
-version: 1
+env_class: !!python/name:environments.warehouse.VariationalWarehouse ''
 ball_count:
-  a:1
-  b:1
-balls: 'bcd'
+  a:
+    1
+  b:
+    1
+balls: 'abcd'
 buckets: 'B'
 pairing:
   A: 
-  -a
+  - a
   B:
-  -b
+  - b
 mapsize: 10
 n_worlds: 100

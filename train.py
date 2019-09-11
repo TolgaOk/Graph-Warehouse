@@ -6,52 +6,38 @@ from rl_pysc2.agents.a2c.model import A2C
 from rl_pysc2.utils.parallel_envs import ParallelEnv
 from environment import VariationalWarehouse
 from knowledgenet import GraphDqnModel
+from tools.config import Config
 
-
-def train_agent(worldmaps, balls, buckets, relations,
-                adjacency, hyperparams, network_class,
-                save_param_path=None, suffix="0", loadstates=False):
-    logger = logger_config()
-
-    device = "cuda"
-
-    env = VariationalWarehouse(
-        balls, buckets, pairing=relations, worldmaps=worldmaps)
-    in_channel, mapsize, _ = env.observation_space.shape
-    n_act = 4
-    if network_class == GraphDqnModel:
-        adj = adjacency(device)
-        network = network_class(adj.shape[0], in_channel, mapsize, n_act, adj)
-    else:
-        network = network_class(in_channel, mapsize, n_act)
-    env.close()
-    del env
+def train_agent(config, name, loadstates=False, forced=False):
+    if not forced and not config.model_params:
+        raise RuntimeError("Config file already occupied. Force it to overwrite")    
+    logger = configure_logger(config.logger_config)
+    device = config.hyperparams['device']
+    env = config.initiate_env()
+    network = config.initiate_model()
     optimizer = torch.optim.Adam(network.parameters(),
-                                 lr=hyperparams["lr"])
+                                 lr=config.hyperparams["lr"])
     agent = A2C(network, optimizer)
     agent.to(device)
     loss = 0
 
-    penv = ParallelEnv(hyperparams["nenv"],
-                       lambda: VariationalWarehouse(balls,
-                                                    buckets,
-                                                    pairing=relations,
-                                                    worldmaps=worldmaps))
-    eps_rewards = np.zeros((hyperparams["nenv"], 1))
+    penv = ParallelEnv(config.hyperparams["nenv"],config.initiate_env)
+    eps_rewards = np.zeros((config.hyperparams["nenv"], 1))
     reward_list = [0]
     success_list = [0]
 
     def to_torch(array):
         return torch.from_numpy(array).to(device).float()
-    logger.hyperparameters(hyperparams, win="Hyperparameters")
+    logger.hyperparameters(config.hyperparams, win="Hyperparameters")
 
-    if loadstates:
-        agent.load_model(save_param_path)
+    if loadstates and config.model_params:
+        agent.load_from_state_dict(config.model_params['agent'])
+        optimizer.load_from_state_dict(config.model_params['optimizer'])
 
     with penv as state:
         state = to_torch(state)
-        for i in range(hyperparams["n_timesteps"]//hyperparams["nstep"]):
-            for j in range(hyperparams["nstep"]):
+        for i in range(config.hyperparams["n_timesteps"]//config.hyperparams["nstep"]):
+            for j in range(config.hyperparams["nstep"]):
                 action, log_prob, value, entropy = agent(state)
                 entropy = entropy
                 action = action.unsqueeze(1).cpu().numpy()
@@ -83,24 +69,27 @@ def train_agent(worldmaps, balls, buckets, relations,
                                       win="success_"+suffix, trace="Last 50")
                         logger.scalar(loss, env="main",
                                       win="loss_"+suffix)
-                    # print(("Epsiode: {}, Reward: {}, Loss: {}")
-                    #       .format(len(reward_list)//hyperparams["nenv"],
-                    #               np.mean(reward_list[-100:]), loss),
-                    #       end="\r")
-            loss = agent.update(hyperparams["gamma"], hyperparams["beta"])
-            if i % 10 == 0 and save_param_path:
-                agent.save_model(save_param_path)
+            loss = agent.update(config.hyperparams["gamma"], config.hyperparams["beta"])
+            if i % 100 == 0:
+                optimizer.model_params = dict(agent=agent.state_dict()
+                     optimizer=optimizer.state_dict())
+                config.save(name)
 
-
-def logger_config():
-    import yaml
+def configure_logger(config):
     import logging.config
-    with open('logger_config.yaml', 'r') as f:
-        config = yaml.safe_load(f.read())
-        logging.config.dictConfig(config)
+    logging.config.dictConfig(config)
     logger = logging.getLogger(__name__)
     return logger
 
 
 if __name__ == "__main__":
-    train_agent()
+    parser = argparse.ArgumentParser(description='Process some integers.')
+    
+    parser.add_argument("--name", help="Config file name to load", action="store", dest="load_name")
+    parser.add_argument("--forced", help="force to overwrite", action='store_true')
+    parser.add_argument("--continue", help="initiates parameters from the given config", action='store_true')
+
+    kwargs = vars(parser.parse_args())
+    kwargs['name'] =  "configs/configs/" + load_name
+    kwargs['config'] = Config(Config.load(kwargs['name']))
+    train_agent(**kwargs)
