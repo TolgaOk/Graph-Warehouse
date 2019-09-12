@@ -10,12 +10,11 @@ from models.knowledgenet import GraphA2C
 class Config:
 
     def __init__(self, info, overwrite=False):
-        self.info = info
         self.overwrite = overwrite
         
-        for key in self.info.keys():
-            setattr(self, key, self.info[key])
-
+        for key in info.keys():
+            setattr(self, key, info[key])
+        self.attr_keys = info.keys()
     def save(self, path):
         """
         Save model data and info to the given path. Note that path does 
@@ -25,8 +24,10 @@ class Config:
             raise FileExistsError("Overwrite is False!")
         else :
             os.makedirs(path, exist_ok=True)
-            pickle.dump(self.info, open(path + "/data.b", "wb"))
+            info = {key: getattr(self,key) for key in self.attr_keys}
+            pickle.dump(info, open(path + "/data1.b", "wb"))
             yaml.dump(self.info_view(), open(path + "/info.yaml", "w"))
+
     def info_view(self):
         """ Read only informations for serializable objects.
         """
@@ -36,24 +37,25 @@ class Config:
             model_structure=None,
             model_kwargs={key: value for key, value in self.model_kwargs.items() 
                           if isinstance(value,(str,int,float,tuple,list,dict)) 
-                          and sys.getsizeof(value)<100},
+                          and len(str(value))<100},
             model_class=self.model_class,
             hyperparams=self.hyperparams)
         return view_dict
         
     @staticmethod
-    def load(path):
-        """ Load data from the given path. NOte that given argument <param> 
+    def load(path, overwrite=False):
+        """ Load data from the given path. Note that given argument <param> 
         does not contain the name.
         """
+
         if not os.path.exists(path):
             raise FileNotFoundError("Info file not found at {}".format(path))
         else:
-            info = pickle.load(open(path + "/data.b", "rb"))
-        return info
+            info = pickle.load(open(path + "/data1.b", "rb"))
+        return Config(info,overwrite=overwrite)
         
     def initiate_model(self):
-        return self.model_class(self.model_kwargs)
+        return self.model_class(**self.model_kwargs)
 
     def initiate_env(self):
-        return self.env_class(self.env_kwargs)
+        return self.env_class(**self.env_kwargs)

@@ -5,7 +5,7 @@ ball_count:
   b:
     1
 balls: 'abcd'
-buckets: 'B'
+buckets: 'AB'
 pairing:
   A: 
   - a

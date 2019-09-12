@@ -1,15 +1,20 @@
 import torch
 import numpy as np
 import gym
+import argparse
+import logging
+import lamp
 
 from rl_pysc2.agents.a2c.model import A2C
 from rl_pysc2.utils.parallel_envs import ParallelEnv
-from environment import VariationalWarehouse
-from knowledgenet import GraphDqnModel
+from environments.warehouse import VariationalWarehouse
+from models.knowledgenet import GraphA2C
 from tools.config import Config
 
-def train_agent(config, name, loadstates=False, forced=False):
-    if not forced and not config.model_params:
+
+def train_agent(load_name, resume=False, forced=False, suffix='0', **residual):
+    config = Config.load(load_name, overwrite=True)
+    if not forced and config.model_params:
         raise RuntimeError("Config file already occupied. Force it to overwrite")    
     logger = configure_logger(config.logger_config)
     device = config.hyperparams['device']
@@ -30,9 +35,9 @@ def train_agent(config, name, loadstates=False, forced=False):
         return torch.from_numpy(array).to(device).float()
     logger.hyperparameters(config.hyperparams, win="Hyperparameters")
 
-    if loadstates and config.model_params:
-        agent.load_from_state_dict(config.model_params['agent'])
-        optimizer.load_from_state_dict(config.model_params['optimizer'])
+    if resume and config.model_params:
+        agent.load_state_dict(config.model_params['agent'])
+        optimizer.load_state_dict(config.model_params['optimizer'])
 
     with penv as state:
         state = to_torch(state)
@@ -71,9 +76,9 @@ def train_agent(config, name, loadstates=False, forced=False):
                                       win="loss_"+suffix)
             loss = agent.update(config.hyperparams["gamma"], config.hyperparams["beta"])
             if i % 100 == 0:
-                optimizer.model_params = dict(agent=agent.state_dict()
-                     optimizer=optimizer.state_dict())
-                config.save(name)
+                config.model_params = dict(agent=agent.state_dict(),
+                     optimizer=optimizer.state_dict())       
+                config.save(load_name)
 
 def configure_logger(config):
     import logging.config
@@ -87,9 +92,19 @@ if __name__ == "__main__":
     
     parser.add_argument("--name", help="Config file name to load", action="store", dest="load_name")
     parser.add_argument("--forced", help="force to overwrite", action='store_true')
-    parser.add_argument("--continue", help="initiates parameters from the given config", action='store_true')
+    parser.add_argument("--resume", help="initiates parameters from the given config", action='store_true')
+    parser.add_argument("--n-train", help="number of trains", action='store',type=int, dest='n_process', default=1)
+
 
     kwargs = vars(parser.parse_args())
-    kwargs['name'] =  "configs/configs/" + load_name
-    kwargs['config'] = Config(Config.load(kwargs['name']))
-    train_agent(**kwargs)
+    kwargs['load_name'] =  "configs/configs/" + kwargs['load_name']
+    processes = []
+    for i in range(kwargs['n_process']):
+        kwargs['suffix'] = str(i)
+        process = torch.multiprocessing.Process(
+            target=train_agent, kwargs=kwargs)
+        process.start()
+        processes.append(process)
+
+    for p in processes:
+        p.join()

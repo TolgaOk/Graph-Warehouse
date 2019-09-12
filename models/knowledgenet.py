@@ -30,9 +30,8 @@ class EdgeGraphConv(torch.nn.Module):
 
 
 class GraphA2C(torch.nn.Module):
-    def __init__(self, n_edge, n_node, mapsize, n_act, adjacency, eg_size, kg_size, dense_in_channel, dense_size):
+    def __init__(self, n_edge, n_node, mapsize, n_act, adjacency, eg_size, kg_size, dense_in_channel, dense_size, **kwargs):
         super().__init__()
-
         self.n_node = n_node
         self.adj = adjacency
 

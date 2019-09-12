@@ -1,0 +1,5 @@
+model_class: !!python/name:models.knowledgenet.GraphA2C ''
+eg_size: 64
+kg_size: 64
+dense_in_channel: 32
+dense_size: 256

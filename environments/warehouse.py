@@ -16,7 +16,7 @@ class VariationalWarehouse(Warehouse):
         pairing: Dictionary of ball bucket pairings
     """
 
-    def __init__(self, balls, buckets, worldmaps, pairing):
+    def __init__(self, balls, buckets, worldmaps, pairing, **kwargs):
         self.world_maps = worldmaps
         worldmap = random.sample(worldmaps, 1)[0]
         super().__init__(balls, buckets, worldmap=worldmap, pairing=pairing)
@@ -111,17 +111,20 @@ class VariationalWarehouse(Warehouse):
                                                         data["mapsize"], data["mapsize"]) 
                                                         for i in range(data["n_worlds"])]
         
-        graph = VariationalWarehouse.get_adjacency(data["ball_count"], 
+        adjacency = VariationalWarehouse.get_adjacency(data["ball_count"], 
                                                    data["balls"], data["pairing"])
         n_objects = 2 + len(data["pairing"].keys()) + len(data["balls"])
         environment_kwargs = dict(
-            graph = graph,
+            adjacency = adjacency,
+            n_edge=adjacency.shape[0],
+            n_node=adjacency.shape[1],
             in_channel = n_objects,
-            out_channel = 4,
+            n_act = 4,
             mapsize = data["mapsize"],
             balls = data["balls"],
             buckets = data["buckets"],
             pairing = data["pairing"],
             worldmaps = worldmaps,
+            ball_count=data['ball_count']
             )
         return environment_kwargs

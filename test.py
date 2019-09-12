@@ -1,34 +1,31 @@
 import torch
 import numpy as np
 import time
+import argparse
 
-from environment import VariationalWarehouse
+from environments.warehouse import VariationalWarehouse
 from rl_pysc2.agents.a2c.model import A2C
-from knowledgenet import GraphDqnModel
+from models.knowledgenet import GraphA2C
+from tools.config import Config
 
 
-def test_agent(worldmaps, balls, buckets, relations,
-               adjacency, load_param_path,
-               network_class, render=True, n_test=1):
-    device = "cuda"
+def test_agent(load_name,render=True, n_test=1):
+    config = Config.load(load_name, overwrite=True)
+    device = config.hyperparams['device']
 
-    env = VariationalWarehouse(balls, buckets,
-                               worldmaps=worldmaps, pairing=relations)
-    in_channel, mapsize, _ = env.observation_space.shape
-    n_act = 4
-    if network_class == GraphDqnModel:
-        adj = adjacency(device)
-        network = network_class(adj.shape[0], in_channel, mapsize, n_act, adj)
-    else:
-        network = network_class(in_channel, mapsize, n_act)
-    agent = A2C(network, None)
+    env = config.initiate_env()
+    network = config.initiate_model()
+    optimizer = torch.optim.Adam(network.parameters(),
+                                 lr=config.hyperparams["lr"])
+    agent = A2C(network, optimizer)
     agent.to(device)
     agent.eval()
 
     reward_list = [0]
     success_list = [0]
 
-    agent.load_model(load_param_path)
+    agent.load_state_dict(config.model_params['agent'])
+    optimizer.load_state_dict(config.model_params['optimizer'])
 
     def to_torch(array):
         return torch.from_numpy(array).to(device).float()
@@ -53,3 +50,14 @@ def test_agent(worldmaps, balls, buckets, relations,
         print("Progress: {}%".format(i/n_test*100), end="\r")
 
     return average_reward, success_list
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Process some integers.')
+    
+    parser.add_argument("--name", help="Config file name to load", action="store", dest="load_name")
+    parser.add_argument("--render", help="to render", action='store_true')
+    parser.add_argument("--iter", help="number of tests", action='store',type=int, dest='n_test',default=1)
+
+    kwargs = vars(parser.parse_args())
+    kwargs['load_name'] =  "configs/configs/" + kwargs['load_name']
+    test_agent(**kwargs)
