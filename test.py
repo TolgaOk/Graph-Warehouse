@@ -9,7 +9,7 @@ from models.knowledgenet import GraphA2C
 from tools.config import Config
 
 
-def test_agent(load_name,render=True, n_test=1):
+def test_agent(load_name, render=True, n_test=1):
     config = Config.load(load_name, overwrite=True)
     device = config.hyperparams['device']
 
@@ -51,13 +51,16 @@ def test_agent(load_name,render=True, n_test=1):
 
     return average_reward, success_list
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Process some integers.')
-    
-    parser.add_argument("--name", help="Config file name to load", action="store", dest="load_name")
+
+    parser.add_argument("--name", help="Config file name to load",
+                        action="store", dest="load_name")
     parser.add_argument("--render", help="to render", action='store_true')
-    parser.add_argument("--iter", help="number of tests", action='store',type=int, dest='n_test',default=1)
+    parser.add_argument("--iter", help="number of tests",
+                        action='store', type=int, dest='n_test', default=1)
 
     kwargs = vars(parser.parse_args())
-    kwargs['load_name'] =  "configs/configs/" + kwargs['load_name']
+    kwargs['load_name'] = "configs/configs/" + kwargs['load_name']
     test_agent(**kwargs)

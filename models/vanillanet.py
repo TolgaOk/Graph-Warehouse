@@ -2,7 +2,8 @@ import torch
 
 
 class ConvModel(torch.nn.Module):
-    def __init__(self, in_channel, mapsize, n_act, conv_in_size, conv_out_size, dense_size, **kwargs):
+    def __init__(self, in_channel, mapsize, n_act, conv_in_size,
+                 conv_out_size, dense_size, **kwargs):
         super().__init__()
         self.convnet = torch.nn.Sequential(
             torch.nn.Conv2d(in_channel + 2, conv_in_size, 5, 1, padding=2),

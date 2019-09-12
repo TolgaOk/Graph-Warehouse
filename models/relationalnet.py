@@ -87,7 +87,7 @@ class RelationalModule(torch.nn.Module):
         output = self.entitywise_fc(
             attened_values.reshape(bs*height*width, -1))
         output = activation(output)
-        
+
         output = self.dropout(output)
         feature = output.reshape(bs, height, width, -1) + input
         feature = feature.permute(0, 3, 1, 2)
@@ -103,7 +103,8 @@ class RelationalModule(torch.nn.Module):
 
 
 class RelationalNet(torch.nn.Module):
-    def __init__(self, in_channel, mapsize, n_act, conv_size, attn_size, qkv_dim, n_heads, dense_size, **kwargs):
+    def __init__(self, in_channel, mapsize, n_act, conv_size, attn_size,
+                 qkv_dim, n_heads, dense_size, **kwargs):
         super().__init__()
         self.in_channel = in_channel
         self.mapsize = mapsize
@@ -118,7 +119,8 @@ class RelationalNet(torch.nn.Module):
 
         # Relational
         self.relational_module = RelationalModule(attn_size, qkv_dim, qkv_dim,
-                                                  n_heads=n_heads, mapsize=mapsize)
+                                                  n_heads=n_heads,
+                                                  mapsize=mapsize)
         self.pool = torch.nn.MaxPool2d(mapsize)
 
         # Output

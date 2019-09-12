@@ -102,29 +102,31 @@ class VariationalWarehouse(Warehouse):
                 adj[2][objs[ball], objs[bucket]] = 1.0
 
         return adj
-    
+
     @staticmethod
     def prep_env(path):
-        data = yaml.load(open(path,"r"))
-        worldmaps = [VariationalWarehouse.generate_maps(data["ball_count"], 
-                                                        data["buckets"], 
-                                                        data["mapsize"], data["mapsize"]) 
-                                                        for i in range(data["n_worlds"])]
-        
-        adjacency = VariationalWarehouse.get_adjacency(data["ball_count"], 
-                                                   data["balls"], data["pairing"])
+        data = yaml.load(open(path, "r"))
+        worldmaps = [VariationalWarehouse.generate_maps(data["ball_count"],
+                                                        data["buckets"],
+                                                        data["mapsize"],
+                                                        data["mapsize"])
+                     for i in range(data["n_worlds"])]
+
+        adjacency = VariationalWarehouse.get_adjacency(data["ball_count"],
+                                                       data["balls"],
+                                                       data["pairing"])
         n_objects = 2 + len(data["pairing"].keys()) + len(data["balls"])
         environment_kwargs = dict(
-            adjacency = adjacency,
+            adjacency=adjacency,
             n_edge=adjacency.shape[0],
             n_node=adjacency.shape[1],
-            in_channel = n_objects,
-            n_act = 4,
-            mapsize = data["mapsize"],
-            balls = data["balls"],
-            buckets = data["buckets"],
-            pairing = data["pairing"],
-            worldmaps = worldmaps,
+            in_channel=n_objects,
+            n_act=4,
+            mapsize=data["mapsize"],
+            balls=data["balls"],
+            buckets=data["buckets"],
+            pairing=data["pairing"],
+            worldmaps=worldmaps,
             ball_count=data['ball_count']
-            )
+        )
         return environment_kwargs

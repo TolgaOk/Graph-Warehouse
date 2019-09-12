@@ -13,8 +13,10 @@ class VisualAttn(torch.nn.Module):
                                           mapsize,
                                           mapsize)
         self.pre_conv = torch.nn.Conv2d(
-            in_channel+self.fourier_bases.channel_size, out_channels=in_channel,
+            in_channel+self.fourier_bases.channel_size,
+            out_channels=in_channel,
             kernel_size=3, padding=1)
+        self.pre_instance_norm = torch.nn.InstanceNorm2d(in_channel)
         self.visattn_conv = torch.nn.Conv2d(
             in_channel, out_channels=n_entity,
             kernel_size=3, padding=1)
@@ -23,11 +25,23 @@ class VisualAttn(torch.nn.Module):
             kernel_size=(1, 1, 1), padding=(0, 1, 1))
 
     def forward(self, state):
+        statistics = {}
         state = self.fourier_bases.apply(state)
+        statistics["FourierState_std"] = torch.std(state)
+        statistics["FourierState_mean"] = torch.mean(state)
         x = torch.relu(self.pre_conv(state))
+        x = self.pre_instance_norm(x)
+        statistics["PreAtten_std"] = torch.std(x)
+        statistics["PreAtten_mean"] = torch.mean(x)
         attn = torch.sigmoid(self.visattn_conv(x))
+        # print(attn[0, 0])
+        statistics["Atten_std"] = torch.std(attn)
+        statistics["Atten_mean"] = torch.mean(attn)
         x = torch.einsum("bfyx, beyx->bfeyx", state, attn)
         x = torch.relu(self.conv3d(x)).permute(0, 2, 1, 3, 4)
+        statistics["EndVisAttn_std"] = torch.std(x)
+        statistics["EndVisAttn_mean"] = torch.mean(x)
+        self.statistics = statistics
         x = x.mean((-1, -2))
         return x, attn
 
@@ -38,9 +52,13 @@ class FourierBases:
         y_coords, x_coords = torch.meshgrid(
             torch.linspace(-1, 1, height),
             torch.linspace(-1, 1, width))
-        
-        even_bases = torch.stack([torch.cos(pi*x_coords*u_)*torch.cos(pi*y_coords*v_) for v_, u_ in product(v, u)])
-        odd_bases = torch.stack([torch.sin(pi*x_coords*u_)*torch.sin(pi*y_coords*v_) for v_, u_ in product(v, u)])
+
+        even_bases = torch.stack(
+            [torch.cos(pi*x_coords*u_)*torch.cos(pi*y_coords*v_)
+             for v_, u_ in product(v, u)])
+        odd_bases = torch.stack(
+            [torch.sin(pi*x_coords*u_)*torch.sin(pi*y_coords*v_)
+             for v_, u_ in product(v, u)])
 
         self._bases = torch.cat([even_bases, odd_bases], dim=0).to(device)
         self.bases = self._bases.unsqueeze(0)
@@ -49,7 +67,8 @@ class FourierBases:
         bs, channel, height, width = state.shape
         device = state.device
         if self.bases.shape[0] != bs or device != self.bases.device:
-            self.bases = self._bases.unsqueeze(0).repeat(bs, 1, 1, 1).to(device)
+            self.bases = self._bases.unsqueeze(
+                0).repeat(bs, 1, 1, 1).to(device)
         return torch.cat([state, self.bases], dim=1)
 
     @property
@@ -83,15 +102,18 @@ class SelfAttn(torch.nn.Module):
         bs, n_entity, n_feature = features.shape
 
         query = self.query_layernorm(self.query_fc(features).reshape(
-            bs, n_entity, self.n_heads, self.qkv_dim//self.n_heads).permute(0, 2, 1, 3))
+            bs, n_entity, self.n_heads,
+            self.qkv_dim//self.n_heads).permute(0, 2, 1, 3))
         query = torch.relu(query)
 
         key = self.key_layernorm(self.key_fc(features).reshape(
-            bs, n_entity, self.n_heads, self.qkv_dim//self.n_heads).permute(0, 2, 1, 3))
+            bs, n_entity, self.n_heads,
+            self.qkv_dim//self.n_heads).permute(0, 2, 1, 3))
         key = torch.relu(key)
 
         value = self.value_layernorm(self.value_fc(features).reshape(
-            bs, n_entity, self.n_heads, self.qkv_dim//self.n_heads).permute(0, 2, 1, 3))
+            bs, n_entity, self.n_heads,
+            self.qkv_dim//self.n_heads).permute(0, 2, 1, 3))
         value = torch.relu(value)
 
         qkv_dim_sqrt = math.sqrt(self.qkv_dim)
@@ -99,7 +121,7 @@ class SelfAttn(torch.nn.Module):
         attn = torch.einsum("bhef, bhxf->bhxe", key, query)
         attn = torch.nn.functional.softmax(attn/qkv_dim_sqrt, dim=-1)
         attned_value = torch.einsum("bhxe, bhef->bxhf", attn, value)
-       
+
         features = attned_value.reshape(bs, n_entity, self.qkv_dim)
         features = torch.relu(self.entitywise_fc(features))
         return features
@@ -110,7 +132,8 @@ class SelfAttn(torch.nn.Module):
 
 class OurAttnModule(torch.nn.Module):
 
-    def __init__(self, in_channel, out_channel, qkv_dim,  n_entity, n_heads, mapsize):
+    def __init__(self, in_channel, out_channel, qkv_dim,
+                 n_entity, n_heads, mapsize):
         super().__init__()
         self.conv = torch.nn.Conv2d(in_channel, out_channel,
                                     kernel_size=3, padding=1)
@@ -129,7 +152,8 @@ class OurAttnModule(torch.nn.Module):
 
 class OurAttnNet(torch.nn.Module):
 
-    def __init__(self, in_channel, mapsize, n_act, n_entity, n_heads, conv_size, attn_size, qkv_dim, dense_size, **kwargs):
+    def __init__(self, in_channel, mapsize, n_act, n_entity,
+                 n_heads, conv_size, attn_size, qkv_dim, dense_size, **kwargs):
         super().__init__()
 
         self.convnet = torch.nn.Sequential(
@@ -190,4 +214,3 @@ if __name__ == "__main__":
     state = torch.ones(bs, in_channel, height, width)
 
     net = OurAttnNet(in_channel, None, n_act, n_entity, n_heads)
-    # layer = OurAttnModule(in_channel, out_channel, qkv_dim, n_entity, n_heads)
