@@ -103,34 +103,34 @@ class RelationalModule(torch.nn.Module):
 
 
 class RelationalNet(torch.nn.Module):
-    def __init__(self, in_channel, mapsize, n_act):
+    def __init__(self, in_channel, mapsize, n_act, conv_size, attn_size, qkv_dim, n_heads, dense_size, **kwargs):
         super().__init__()
         self.in_channel = in_channel
         self.mapsize = mapsize
 
         # Input
         self.convnet = torch.nn.Sequential(
-            torch.nn.Conv2d(in_channel, 64, 5, 1, padding=2),
+            torch.nn.Conv2d(in_channel, conv_size, 5, 1, padding=2),
             torch.nn.ReLU(),
-            torch.nn.Conv2d(64, 32, 5, 1, padding=2),
+            torch.nn.Conv2d(conv_size, attn_size, 5, 1, padding=2),
             torch.nn.ReLU(),
         )
 
         # Relational
-        self.relational_module = RelationalModule(32, 16, 16,
-                                                  n_heads=4, mapsize=mapsize)
+        self.relational_module = RelationalModule(attn_size, qkv_dim, qkv_dim,
+                                                  n_heads=n_heads, mapsize=mapsize)
         self.pool = torch.nn.MaxPool2d(mapsize)
 
         # Output
         self.policy = torch.nn.Sequential(
-            torch.nn.Linear(32, 256),
+            torch.nn.Linear(attn_size, dense_size),
             torch.nn.ReLU(),
-            torch.nn.Linear(256, n_act)
+            torch.nn.Linear(dense_size, n_act)
         )
         self.value = torch.nn.Sequential(
-            torch.nn.Linear(32, 256),
+            torch.nn.Linear(attn_size, dense_size),
             torch.nn.ReLU(),
-            torch.nn.Linear(256, 1)
+            torch.nn.Linear(dense_size, 1)
         )
         self.apply(self.param_init)
         self.attn_weights = None

@@ -2,24 +2,24 @@ import torch
 
 
 class ConvModel(torch.nn.Module):
-    def __init__(self, in_channel, mapsize, n_act):
+    def __init__(self, in_channel, mapsize, n_act, conv_in_size, conv_out_size, dense_size, **kwargs):
         super().__init__()
         self.convnet = torch.nn.Sequential(
-            torch.nn.Conv2d(in_channel + 2, 64, 5, 1, padding=2),
+            torch.nn.Conv2d(in_channel + 2, conv_in_size, 5, 1, padding=2),
             torch.nn.ReLU(),
-            torch.nn.Conv2d(64, 32, 5, 1, padding=2),
+            torch.nn.Conv2d(conv_in_size, conv_out_size, 5, 1, padding=2),
             torch.nn.ReLU(),
         )
 
         self.policy = torch.nn.Sequential(
-            torch.nn.Linear(32, 256),
+            torch.nn.Linear(conv_out_size, dense_size),
             torch.nn.ReLU(),
-            torch.nn.Linear(256, n_act)
+            torch.nn.Linear(dense_size, n_act)
         )
         self.value = torch.nn.Sequential(
-            torch.nn.Linear(32, 256),
+            torch.nn.Linear(conv_out_size, dense_size),
             torch.nn.ReLU(),
-            torch.nn.Linear(256, 1)
+            torch.nn.Linear(dense_size, 1)
         )
         self.pool = torch.nn.MaxPool2d(mapsize)
 

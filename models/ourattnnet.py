@@ -129,30 +129,30 @@ class OurAttnModule(torch.nn.Module):
 
 class OurAttnNet(torch.nn.Module):
 
-    def __init__(self, in_channel, mapsize, n_act, n_entity=4, n_heads=4):
+    def __init__(self, in_channel, mapsize, n_act, n_entity, n_heads, conv_size, attn_size, qkv_dim, dense_size, **kwargs):
         super().__init__()
 
         self.convnet = torch.nn.Sequential(
-            torch.nn.Conv2d(in_channel, 64, 3, 1, padding=1),
+            torch.nn.Conv2d(in_channel, conv_size, 3, 1, padding=1),
             torch.nn.ReLU(),
-            torch.nn.Conv2d(64, 32, 3, 1, padding=1),
+            torch.nn.Conv2d(conv_size, attn_size, 3, 1, padding=1),
             torch.nn.ReLU(),
         )
 
-        self.attn_module = OurAttnModule(32, 32, 16,
+        self.attn_module = OurAttnModule(attn_size, attn_size, qkv_dim,
                                          n_entity=n_entity,
                                          n_heads=n_heads,
                                          mapsize=mapsize)
 
         self.policy = torch.nn.Sequential(
-            torch.nn.Linear(32, 256),
+            torch.nn.Linear(attn_size, dense_size),
             torch.nn.ReLU(),
-            torch.nn.Linear(256, n_act)
+            torch.nn.Linear(dense_size, n_act)
         )
         self.value = torch.nn.Sequential(
-            torch.nn.Linear(32, 256),
+            torch.nn.Linear(attn_size, dense_size),
             torch.nn.ReLU(),
-            torch.nn.Linear(256, 1)
+            torch.nn.Linear(dense_size, 1)
         )
         self.apply(self.param_init)
 
