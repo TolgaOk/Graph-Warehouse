@@ -135,7 +135,7 @@ class OurAttnVisualizer():
 
         self.cropper.set_engine(self.env.game)
 
-    def paint_map(self, map_cells, vis_attn, cmap="viridis"):
+    def paint_map(self, map_cells, vis_attn, cmap="gray"):
         attn_cmap = plt.cm.get_cmap(cmap, 100)
         assert len(vis_attn.shape) == 2
         for cell, attn_value in zip(map_cells, vis_attn.flatten()):
