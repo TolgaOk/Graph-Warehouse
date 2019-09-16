@@ -135,13 +135,26 @@ class OurAttnVisualizer():
 
         self.cropper.set_engine(self.env.game)
 
-    def paint_map(self, map_cells, vis_attn, cmap="viridis"):
+    def paint_map(self, map_cells, vis_attn, cmap="gray"):
         attn_cmap = plt.cm.get_cmap(cmap, 100)
         assert len(vis_attn.shape) == 2
-        for cell, attn_value in zip(map_cells, vis_attn.flatten()):
-            rgb = attn_cmap(int(attn_value*100))[:3]
-            color = matplotlib.colors.rgb2hex(rgb)
-            self.canvas.itemconfig(cell, fill=color)
+
+        board = self.cropper.crop(self.env.observation).board
+
+        for cell, attn_value, cell_value in zip(map_cells,
+                                    vis_attn.flatten(),
+                                    board.flatten()):
+
+            gray_rgb = attn_cmap(int(attn_value*100))[:3]
+            grey_color = np.array(tuple(gray_rgb))
+
+            cell_color = self.colors[cell_value]
+            cell_color = np.array([int(cell_color[i+1:i+3], 16) for i in (0, 2, 4)])/255
+
+            color = cell_color*attn_value.item() + np.zeros(3)*(1-attn_value.item())
+
+            self.canvas.itemconfig(cell,
+                                   fill=matplotlib.colors.rgb2hex(tuple(color)))
         self.root.update()
 
     def paint_environment(self, map_cells, board):
