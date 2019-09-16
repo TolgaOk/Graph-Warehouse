@@ -27,21 +27,22 @@ class VisualAttn(torch.nn.Module):
     def forward(self, state):
         statistics = {}
         state = self.fourier_bases.apply(state)
-        statistics["FourierState_std"] = torch.std(state)
-        statistics["FourierState_mean"] = torch.mean(state)
+        statistics["FourierState_std"] = torch.std(state).item()
+        statistics["FourierState_mean"] = torch.mean(state).item()
         x = torch.relu(self.pre_conv(state))
         x = self.pre_instance_norm(x)
-        statistics["PreAtten_std"] = torch.std(x)
-        statistics["PreAtten_mean"] = torch.mean(x)
+        statistics["PreAtten_std"] = torch.std(x).item()
+        statistics["PreAtten_mean"] = torch.mean(x).item()
         attn = torch.sigmoid(self.visattn_conv(x))
-        # print(attn[0, 0])
-        statistics["Atten_std"] = torch.std(attn)
-        statistics["Atten_mean"] = torch.mean(attn)
+        print(attn[0])
+        statistics["Atten_std"] = torch.std(attn).item()
+        statistics["Atten_mean"] = torch.mean(attn).item()
         x = torch.einsum("bfyx, beyx->bfeyx", state, attn)
         x = torch.relu(self.conv3d(x)).permute(0, 2, 1, 3, 4)
-        statistics["EndVisAttn_std"] = torch.std(x)
-        statistics["EndVisAttn_mean"] = torch.mean(x)
+        statistics["EndVisAttn_std"] = torch.std(x).item()
+        statistics["EndVisAttn_mean"] = torch.mean(x).item()
         self.statistics = statistics
+        # print(statistics)
         x = x.mean((-1, -2))
         return x, attn
 
@@ -120,6 +121,8 @@ class SelfAttn(torch.nn.Module):
 
         attn = torch.einsum("bhef, bhxf->bhxe", key, query)
         attn = torch.nn.functional.softmax(attn/qkv_dim_sqrt, dim=-1)
+        self.self_attn = attn
+        # print(attn)
         attned_value = torch.einsum("bhxe, bhef->bxhf", attn, value)
 
         features = attned_value.reshape(bs, n_entity, self.qkv_dim)
@@ -145,6 +148,7 @@ class OurAttnModule(torch.nn.Module):
     def forward(self, state):
         state = torch.relu(self.conv(state))
         features, attn = self.visual_attn(state)
+        self.vis_attn_features = attn
         features = self.self_attn(features)
         post_state = self.self_attn.broadcast(features, attn)
         return self.instance_norm(post_state + state)

@@ -1,4 +1,4 @@
-env_class: !!python/name:graph_rl.environments.warehouse.VariationalWarehouse ''
+env_class: !!python/name:environments.warehouse.VariationalWarehouse ''
 ball_count:
   a:
     1

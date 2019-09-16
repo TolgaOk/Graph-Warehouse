@@ -1,4 +1,4 @@
-model_class: !!python/name:models.relationalnet.RelationalNet ''
+model_class: !!python/name:graph_rl.models.relationalnet.RelationalNet ''
 conv_size: 64
 attn_size: 32
 qkv_dim: 16

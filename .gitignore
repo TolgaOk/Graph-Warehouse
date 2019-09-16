@@ -3,3 +3,4 @@
 *.b
 /configs/configs
 /experiments
+*.egg-info

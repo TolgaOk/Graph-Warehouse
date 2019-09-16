@@ -1,0 +1,4 @@
+model_class: !!python/name:models.vanillanet.ConvModel ''
+conv_in_size: 64
+conv_out_size: 32
+dense_size: 256

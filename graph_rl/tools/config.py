@@ -4,8 +4,8 @@ import yaml
 import os
 import sys
 
-from models.knowledgenet import GraphA2C
-
+from graph_rl.models.knowledgenet import GraphA2C
+from graph_rl.environments.warehouse import VariationalWarehouse
 
 class Config:
 

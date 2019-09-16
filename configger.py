@@ -1,12 +1,12 @@
 import yaml
 import argparse
 
-from tools.config import Config
-from environments.warehouse import VariationalWarehouse
-from models.knowledgenet import GraphA2C
-from models.ourattnnet import OurAttnNet
-from models.relationalnet import RelationalNet
-from models.vanillanet import ConvModel
+from graph_rl.tools.config import Config
+from graph_rl.environments.warehouse import VariationalWarehouse
+from graph_rl.models.knowledgenet import GraphA2C
+from graph_rl.models.ourattnnet import OurAttnNet
+from graph_rl.models.relationalnet import RelationalNet
+from graph_rl.models.vanillanet import ConvModel
 
 
 def generate_config(save_name, env_config, model_config, hyperparameter_config,

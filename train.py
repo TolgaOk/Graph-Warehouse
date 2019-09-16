@@ -7,12 +7,12 @@ import lamp
 
 from rl_pysc2.agents.a2c.model import A2C
 from rl_pysc2.utils.parallel_envs import ParallelEnv
-from environments.warehouse import VariationalWarehouse
-from models.knowledgenet import GraphA2C
-from models.ourattnnet import OurAttnNet
-from models.relationalnet import RelationalNet
-from models.vanillanet import ConvModel
-from tools.config import Config
+from graph_rl.environments.warehouse import VariationalWarehouse
+from graph_rl.models.knowledgenet import GraphA2C
+from graph_rl.models.ourattnnet import OurAttnNet
+from graph_rl.models.relationalnet import RelationalNet
+from graph_rl.models.vanillanet import ConvModel
+from graph_rl.tools.config import Config
 
 
 def train_agent(load_name, resume=False, forced=False, suffix='0', **residual):
@@ -82,7 +82,7 @@ def train_agent(load_name, resume=False, forced=False, suffix='0', **residual):
                         # ---------------- Statistics ----------------------
                         # for key, stat in agent.network.attn_module.visual_attn.statistics.items():
                         #     trace_name, plot_type = key.split("_")
-                        #     logger.scalar(stat.item(),
+                        #     logger.scalar(stat,
                         #                   env="main",
                         #                   win=plot_type+suffix,
                         #                   trace=trace_name)
