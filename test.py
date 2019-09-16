@@ -10,9 +10,9 @@ from graph_rl.models.knowledgenet import GraphA2C
 from graph_rl.tools.config import Config
 
 
-def test_agent(load_name, render=True, n_test=1, **kwargs):
+def test_agent(suffix, load_name, render=True, n_test=1, **kwargs):
     torch.set_printoptions(precision=2)
-    config = Config.load(load_name, overwrite=True)
+    config = Config.load(load_name, overwrite=True, suffix=suffix)
     device = config.hyperparams['device']
 
     env = config.initiate_env()
@@ -75,7 +75,8 @@ if __name__ == "__main__":
     parser.add_argument("--no-plot", help="to render", action='store_false')
     parser.add_argument("--iter", help="number of tests",
                         action='store', type=int, dest='n_test', default=1)
-
+    parser.add_argument("--suffix", help="Index number of the model",
+                        action='store', type=int, default=0)
     kwargs = vars(parser.parse_args())
     kwargs['load_name'] = "configs/configs/" + kwargs['load_name']
     rewards, success = test_agent(**kwargs)

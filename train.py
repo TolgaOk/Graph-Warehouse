@@ -91,7 +91,7 @@ def train_agent(load_name, resume=False, forced=False, suffix='0', **residual):
             if i % 100 == 0:
                 config.model_params = dict(agent=agent.state_dict(),
                                            optimizer=optimizer.state_dict())
-                config.save(load_name)
+                config.save(load_name, suffix=suffix)
 
 
 def configure_logger(config):

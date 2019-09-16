@@ -34,7 +34,6 @@ class VisualAttn(torch.nn.Module):
         statistics["PreAtten_std"] = torch.std(x).item()
         statistics["PreAtten_mean"] = torch.mean(x).item()
         attn = torch.sigmoid(self.visattn_conv(x))
-        print(attn[0])
         statistics["Atten_std"] = torch.std(attn).item()
         statistics["Atten_mean"] = torch.mean(attn).item()
         x = torch.einsum("bfyx, beyx->bfeyx", state, attn)

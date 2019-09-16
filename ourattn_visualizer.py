@@ -22,9 +22,7 @@ class OurAttnVisualizer():
     def __init__(self, config_path, width = 1000, height = 600):
         self.root = tkinter.Tk()
         self.root.title("OurAttnNet Warehouse")
-        self.croppers = [
-            ObservationCropper(),
-        ]
+        self.cropper = ObservationCropper()
         
         
         self.canvas = tkinter.Canvas(self.root, width=width, height=height, bg="gray")
@@ -33,9 +31,9 @@ class OurAttnVisualizer():
         self.canvas_width = width
 
         self.config = Config.load(config_path)
+        self.n_entity = self.config.model_kwargs['n_entity']
 
         self.self_attn_cells = self._init_self_attn()
-        self.map_cells = self._init_map()
         self.entity_cells = self._init_entities()
 
         reset_button = tkinter.Button(
@@ -44,7 +42,7 @@ class OurAttnVisualizer():
             command=self.reset())
         reset_button.pack()
         reset_button.place(x=width//20, y=height//60,
-                           height=height//20, width=width//20)
+                           height=height//20, width=width//12)
 
         step_button = tkinter.Button(
             self.root,
@@ -52,11 +50,7 @@ class OurAttnVisualizer():
             command=self.step())
         step_button.pack()
         step_button.place(x=width//5, y=height//60,
-                          height=height//20, width=width//20)
-
-        for cell in self.entity_cells:
-            self.canvas.tag_bind(cell, "<Enter>", self.hover_callback)
-            self.canvas.tag_bind(cell, "<Leave>", lambda event: None)
+                          height=height//20, width=width//12)
 
     def _init_entities(self):
         x_begin = self.canvas_width//20
@@ -65,8 +59,16 @@ class OurAttnVisualizer():
         height = self.canvas_height//12
         cells = []
         for e in range(self.n_entity):
-            cell = self.canvas.create_rectangle(x_begin, height_begin,
-                                         x_begin+width, height_begin+height)
+            cell = tkinter.Button(
+                self.root,
+                text="entity " + str(e + 1))
+            cell.pack()
+            cell.place(x=x_begin, y=height_begin,
+                                         width=width, height=height)
+            
+            cell.bind("<Enter>", self.hover(e))
+            cell.bind("<Leave>", lambda event: self.paint_environment(self.map_cells, self.env.observation))
+
             x_begin += width*2
             cells.append(cell)
         return cells
@@ -82,58 +84,56 @@ class OurAttnVisualizer():
         return cells
 
 
-    def _init_map(self):
+    def _init_map(self,border_ratio=0.05):
         """ Initialize the renderer and pop ups the window. Create each cell
         in each croppers. While doing so leaving a single cell sized gap
         between the cells of different croppers.
         Return:
             - List of cell for all croppers.
         """
-        cell_list = []
-        global_col = self.width_offset//self.cell_size
-        for cropper in self.croppers:
-            rows = cropper.rows
-            cols = cropper.cols
+        rows = self.cropper.rows
+        cols = self.cropper.cols
+        canvas_size = self.canvas_height//6*4
+        cell_size = canvas_size//rows
 
-            b_w = int(self.cell_size*self.border_ratio)
-            b_h = int(self.cell_size*self.border_ratio)
+        b_w = int(cell_size*border_ratio)
+        b_h = int(cell_size*border_ratio)
 
-            cells = [self.canvas.create_rectangle(x*self.cell_size + b_w,
-                                                  y*self.cell_size + b_h,
-                                                  (x+1)*self.cell_size - b_w,
-                                                  (y+1)*self.cell_size - b_h)
-                     for y, x in product(range(rows),
-                                         range(global_col, cols + global_col))]
-            cell_list.append(cells)
-            global_col += (1 + cropper.cols)
+        width_offset = self.canvas_width // 20
+        height_offset = self.canvas_height // 12
 
-        for cell in cell_list[0]:
-            self.canvas.tag_bind(cell, "<Enter>", self.hover_callback)
-            self.canvas.tag_bind(cell, "<Leave>", lambda event: None)
+        cells = [self.canvas.create_rectangle(x*cell_size + b_w + width_offset,
+                                                y*cell_size + b_h + height_offset,
+                                                (x+1)*cell_size - b_w + width_offset,
+                                                (y+1)*cell_size - b_h+ height_offset)
+                    for y, x in product(range(rows), range(cols))]
 
-        return cell_list
+        return cells
 
     def initial_reset(self):
 
         network = self.config.initiate_model()
-        device = config.hyperparams['device']
+        device = self.config.hyperparams['device']
         optimizer = torch.optim.Adam(network.parameters(),
-                                 lr=config.hyperparams["lr"])
+                                 lr=self.config.hyperparams["lr"])
         agent = A2C(network, optimizer)
         agent.to(device)
         agent.eval()
 
-        agent.load_state_dict(config.model_params['agent'])
-        optimizer.load_state_dict(config.model_params['optimizer'])
+        agent.load_state_dict(self.config.model_params['agent'])
+        optimizer.load_state_dict(self.config.model_params['optimizer'])
 
         self.agent = agent
         self.env = self.config.initiate_env()
         # Initial step
-        self.state = env.reset()
+        self.state = self.env.reset()
         self.done = False
 
-        for cropper in self.croppers:
-            cropper.set_engine(self.env.game)
+        self.colors = defaultdict(lambda: self.DEFAULT_COLOR)
+        for key, value in self.env.renderer_kwargs["colors"].items():
+            self.colors[ord(key)] = value
+
+        self.cropper.set_engine(self.env.game)
 
     def paint_map(self, map_cells, vis_attn, cmap="viridis"):
         attn_cmap = plt.cm.get_cmap(cmap, 100)
@@ -145,7 +145,8 @@ class OurAttnVisualizer():
         self.root.update()
 
     def paint_environment(self, map_cells, board):
-        cropped_board = self.croppers[0].crop(board).board
+       
+        cropped_board = self.cropper.crop(board).board
         for cell, value in zip(map_cells, cropped_board.flatten()):
             self.canvas.itemconfig(cell, fill=self.colors[value])
         self.root.update()
@@ -161,6 +162,7 @@ class OurAttnVisualizer():
     def reset(self):
         def reset_callback():
             self.initial_reset()
+            self.map_cells = self._init_map()
             board = self.env.observation
             self.paint_environment(self.map_cells, board)
             attn_head = np.zeros((self.n_entity, self.n_entity))
@@ -171,7 +173,7 @@ class OurAttnVisualizer():
     def step(self):
 
         def to_torch(array):
-            return torch.from_numpy(array).to(self.config.device).float()
+            return torch.from_numpy(array).to(self.config.hyperparams['device']).float()
 
         def step_callback():
             if self.done is True:
@@ -192,10 +194,14 @@ class OurAttnVisualizer():
                 print("Warning!!!! Attention module not present!")
         return step_callback
 
-    def hover_callback(self, event):
-        self.paint_map(self.entity_cells, self.agent.network.attn_module.vis_attn_features)
+    def hover(self, index):
         
-
+        def hover_callback(event):
+            self.paint_map(
+                self.map_cells,
+                self.agent.network.attn_module.vis_attn_features[0, index])
+        
+        return hover_callback
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Process some integers.')

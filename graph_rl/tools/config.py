@@ -15,7 +15,8 @@ class Config:
         for key in info.keys():
             setattr(self, key, info[key])
         self.attr_keys = info.keys()
-    def save(self, path):
+
+    def save(self, path, suffix=0):
         """
         Save model data and info to the given path. Note that path does 
         not contain the name.
@@ -24,14 +25,16 @@ class Config:
             raise FileExistsError("Overwrite is False!")
         else :
             os.makedirs(path, exist_ok=True)
-            info = {key: getattr(self,key) for key in self.attr_keys}
-            pickle.dump(info, open(path + "/data1.b", "wb"))
+            os.makedirs(path + "/params", exist_ok=True)
+            info = {key: getattr(self, key) for key in self.attr_keys 
+                    if key != "model_params"}
+            pickle.dump(info, open(path + "/data.b", "wb"))
+            pickle.dump(self.model_params, open(path + "/params/param_" + str(suffix) + ".b", "wb"))
             yaml.dump(self.info_view(), open(path + "/info.yaml", "w"))
 
     def info_view(self):
         """ Read only informations for serializable objects.
         """
-
         view_dict = dict(
             env_class=self.env_class,
             model_structure=None,
@@ -43,16 +46,18 @@ class Config:
         return view_dict
         
     @staticmethod
-    def load(path, overwrite=False):
+    def load(path, overwrite=False, suffix=0):
         """ Load data from the given path. Note that given argument <param> 
         does not contain the name.
         """
 
         if not os.path.exists(path):
-            raise FileNotFoundError("Info file not found at {}".format(path))
+            raise FileNotFoundError("Config file not found at {}".format(path))
         else:
-            info = pickle.load(open(path + "/data1.b", "rb"))
-        return Config(info,overwrite=overwrite)
+            info = pickle.load(open(path + "/data.b", "rb"))
+            params = pickle.load(open(path + "/params/param_" + str(suffix) + ".b", "rb"))
+            info["model_params"] = params
+        return Config(info, overwrite=overwrite)
         
     def initiate_model(self):
         return self.model_class(**self.model_kwargs)
