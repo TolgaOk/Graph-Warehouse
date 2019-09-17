@@ -1,5 +1,5 @@
 model_class: !!python/name:graph_rl.models.ourattnnet.OurAttnNet ''
-n_entity: 6
+n_entity: 8
 n_heads: 4 
 conv_size: 64
 attn_size: 32

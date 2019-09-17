@@ -24,7 +24,7 @@ class VisualAttn(torch.nn.Module):
             in_channel+self.fourier_bases.channel_size, in_channel,
             kernel_size=(1, 1, 1), padding=(0, 1, 1))
 
-    def forward(self, state):
+    def forward(self, state, obj_map):
         statistics = {}
         state = self.fourier_bases.apply(state)
         statistics["FourierState_std"] = torch.std(state).item()
@@ -33,9 +33,11 @@ class VisualAttn(torch.nn.Module):
         x = self.pre_instance_norm(x)
         statistics["PreAtten_std"] = torch.std(x).item()
         statistics["PreAtten_mean"] = torch.mean(x).item()
-        attn = torch.sigmoid(self.visattn_conv(x))
+        # attn = torch.sigmoid(self.visattn_conv(x))
+        attn = obj_map
         statistics["Atten_std"] = torch.std(attn).item()
         statistics["Atten_mean"] = torch.mean(attn).item()
+        
         x = torch.einsum("bfyx, beyx->bfeyx", state, attn)
         x = torch.relu(self.conv3d(x)).permute(0, 2, 1, 3, 4)
         statistics["EndVisAttn_std"] = torch.std(x).item()
@@ -144,9 +146,9 @@ class OurAttnModule(torch.nn.Module):
 
         self.instance_norm = torch.nn.InstanceNorm2d(qkv_dim)
 
-    def forward(self, state):
+    def forward(self, state, obj_map):
         state = torch.relu(self.conv(state))
-        features, attn = self.visual_attn(state)
+        features, attn = self.visual_attn(state, obj_map)
         self.vis_attn_features = attn
         features = self.self_attn(features)
         post_state = self.self_attn.broadcast(features, attn)
@@ -184,9 +186,10 @@ class OurAttnNet(torch.nn.Module):
         self.apply(self.param_init)
 
     def forward(self, state):
+        obj_map = state
         height, width = state.shape[-2:]
         state = self.convnet(state)
-        state = self.attn_module(state)
+        state = self.attn_module(state, obj_map)
         feature = torch.nn.functional.max_pool2d(
             state, (height, width)).squeeze()
         policy = self.policy(feature)
