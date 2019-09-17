@@ -2,6 +2,18 @@ gamma: 0.99
 nenv: 8
 nstep: 20
 n_timesteps: 2000000
-lr: 0.0001
-beta: 0.06
 device: "cuda"
+beta:
+  value: 0.09  
+  scheduler: "linear"
+  temperature: 0.9998 
+  step_decay: 0.000009
+  min_value: 0.01
+  max_value: 0.09
+lr:
+  value: 0.0001
+  scheduler: "linear"
+  temperature: 1 
+  step_decay: 0
+  min_value: 0
+  max_value: 1

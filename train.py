@@ -21,12 +21,15 @@ def train_agent(load_name, resume=False, forced=False, suffix='0', **residual):
         if not forced and config.model_params:
             raise RuntimeError(
                 "Config file already occupied. Force it to overwrite")
+    
     logger = configure_logger(config.logger_config)
     device = config.hyperparams['device']
     env = config.initiate_env()
+    lr = Scheduler(config.hyperparams, "lr")
+    beta = Scheduler(config.hyperparams, "beta")
     network = config.initiate_model()
     optimizer = torch.optim.Adam(network.parameters(),
-                                 lr=config.hyperparams["lr"])
+                                 lr=lr())
     agent = A2C(network, optimizer)
     agent.to(device)
     loss = 0
@@ -63,6 +66,10 @@ def train_agent(load_name, resume=False, forced=False, suffix='0', **residual):
                 for j, d in enumerate(done.flatten()):
                     eps_rewards[j] += reward[j].item()
                     if d == 1:
+                        # !------------- Learning Rate -------------
+                        for param_group in optimizer.param_groups:
+                            param_group['lr'] = lr()
+                        # ------------- Learning Rate -------------!                        
                         success_list.append(float(reward[j] != -0.1))
                         reward_list.append(eps_rewards[j].item())
                         eps_rewards[j] = 0
@@ -88,7 +95,7 @@ def train_agent(load_name, resume=False, forced=False, suffix='0', **residual):
                         #                   win=plot_type+suffix,
                         #                   trace=trace_name)
             loss = agent.update(config.hyperparams["gamma"],
-                                config.hyperparams["beta"])
+                                beta=beta())
             if i % 100 == 0:
                 config.model_params = dict(agent=agent.state_dict(),
                                            optimizer=optimizer.state_dict())
@@ -100,6 +107,31 @@ def configure_logger(config):
     logging.config.dictConfig(config)
     logger = logging.getLogger(__name__)
     return logger
+
+class Scheduler():
+    def __init__(self, hyperparameters, var_name):
+        self.parameters = hyperparameters[var_name]
+        self.value = self.parameters["value"]
+    
+    def exp_scheduler(self, max_value, min_value, temperature, **kwargs):
+        assert 0 <= temperature <= 1, "Temperature must be in range [0, 1]" 
+        self.value *= temperature
+        self.value = min(max(self.value, min_value), max_value)
+        return self.value
+
+    def linear_scheduler(self, max_value, min_value, step_decay, **kwargs):
+        self.value -= step_decay
+        self.value = min(max(self.value, min_value), max_value)
+        return self.value
+
+    def __call__(self):
+        if self.parameters["scheduler"] == "linear":
+            return self.linear_scheduler(**self.parameters)
+        elif self.parameters["scheduler"] == "exp":
+            return self.exp_scheduler(**self.parameters)
+    
+        
+
 
 
 if __name__ == "__main__":
