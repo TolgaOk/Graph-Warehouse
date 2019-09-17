@@ -1,7 +1,0 @@
-model_class: !!python/name:models.ourattnnet.OurAttnNet ''
-n_entity: 6
-n_heads: 4 
-conv_size: 64
-attn_size: 32
-qkv_dim: 16
-dense_size: 256

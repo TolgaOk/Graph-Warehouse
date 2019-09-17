@@ -16,10 +16,11 @@ from graph_rl.tools.config import Config
 
 
 def train_agent(load_name, resume=False, forced=False, suffix='0', **residual):
-    config = Config.load(load_name, overwrite=True)
-    if not forced and config.model_params:
-        raise RuntimeError(
-            "Config file already occupied. Force it to overwrite")
+    config = Config.load(load_name, overwrite=True, suffix=suffix)
+    if not resume:
+        if not forced and config.model_params:
+            raise RuntimeError(
+                "Config file already occupied. Force it to overwrite")
     logger = configure_logger(config.logger_config)
     device = config.hyperparams['device']
     env = config.initiate_env()
@@ -86,8 +87,8 @@ def train_agent(load_name, resume=False, forced=False, suffix='0', **residual):
                         #                   env="main",
                         #                   win=plot_type+suffix,
                         #                   trace=trace_name)
-            loss = agent.update(
-                config.hyperparams["gamma"], config.hyperparams["beta"])
+            loss = agent.update(config.hyperparams["gamma"],
+                                config.hyperparams["beta"])
             if i % 100 == 0:
                 config.model_params = dict(agent=agent.state_dict(),
                                            optimizer=optimizer.state_dict())
@@ -104,15 +105,22 @@ def configure_logger(config):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Process some integers.')
 
-    parser.add_argument("--name", help="Config file name to load",
-                        action="store", dest="load_name")
-    parser.add_argument(
-        "--forced", help="force to overwrite", action='store_true')
-    parser.add_argument(
-        "--resume", help="initiates parameters from the given config",
-        action='store_true')
-    parser.add_argument("--n-train", help="number of trains",
-                        action='store', type=int, dest='n_process', default=1)
+    parser.add_argument("--name",
+                        help="Config file name to load",
+                        action="store",
+                        dest="load_name")
+    parser.add_argument("--forced",
+                        help="Force to overwrite",
+                        action='store_true')
+    parser.add_argument("--resume",
+                        help="Initiates parameters from the given config",
+                        action='store_true')
+    parser.add_argument("--n-train",
+                        help="Number of trains",
+                        action='store',
+                        type=int,
+                        dest='n_process',
+                        default=1)
 
     kwargs = vars(parser.parse_args())
     kwargs['load_name'] = "configs/configs/" + kwargs['load_name']

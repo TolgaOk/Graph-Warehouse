@@ -19,27 +19,30 @@ class OurAttnVisualizer():
 
     DEFAULT_COLOR = "#CCCCCC"
 
-    def __init__(self, config_path, width = 1000, height = 600):
+    def __init__(self, config_path, width=1000, height=600, index=0):
         self.root = tkinter.Tk()
         self.root.title("OurAttnNet Warehouse")
         self.cropper = ObservationCropper()
-        
+        self.index = index
         
         self.canvas = tkinter.Canvas(self.root, width=width, height=height, bg="gray")
+        self.canvas.configure(bg="#223E4A")
         self.canvas.pack()
         self.canvas_height = height
         self.canvas_width = width
 
-        self.config = Config.load(config_path)
+        self.config = Config.load(config_path, suffix=index)
         self.n_entity = self.config.model_kwargs['n_entity']
 
         self.self_attn_cells = self._init_self_attn()
         self.entity_cells = self._init_entities()
 
+        button_color = "#FFA500"
         reset_button = tkinter.Button(
             self.root,
             text="Reset",
-            command=self.reset())
+            command=self.reset(),
+            bg=button_color)
         reset_button.pack()
         reset_button.place(x=width//20, y=height//60,
                            height=height//20, width=width//12)
@@ -47,7 +50,8 @@ class OurAttnVisualizer():
         step_button = tkinter.Button(
             self.root,
             text="Step",
-            command=self.step())
+            command=self.step(),
+            bg=button_color)
         step_button.pack()
         step_button.place(x=width//5, y=height//60,
                           height=height//20, width=width//12)
@@ -115,17 +119,17 @@ class OurAttnVisualizer():
         network = self.config.initiate_model()
         device = self.config.hyperparams['device']
         optimizer = torch.optim.Adam(network.parameters(),
-                                 lr=self.config.hyperparams["lr"])
+                                     lr=self.config.hyperparams["lr"])
         agent = A2C(network, optimizer)
         agent.to(device)
         agent.eval()
-
+        
         agent.load_state_dict(self.config.model_params['agent'])
         optimizer.load_state_dict(self.config.model_params['optimizer'])
 
         self.agent = agent
         self.env = self.config.initiate_env()
-        # Initial step
+        
         self.state = self.env.reset()
         self.done = False
 
@@ -225,6 +229,8 @@ if __name__ == "__main__":
                     action='store', type=int, default=1000)
     parser.add_argument("--height", help="number of tests",
                     action='store', type=int, default=600)
+    parser.add_argument("--index", help="Index of the parameter to load",
+                    action='store', type=int, default=0)
 
     kwargs = vars(parser.parse_args())
     kwargs["config_path"] = "configs/configs/" + kwargs["config_path"] 

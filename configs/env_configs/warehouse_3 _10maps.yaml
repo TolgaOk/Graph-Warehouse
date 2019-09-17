@@ -1,4 +1,4 @@
-env_class: !!python/name:environments.warehouse.VariationalWarehouse ''
+env_class: !!python/name:graph_rl.environments.warehouse.VariationalWarehouse ''
 ball_count:
   a:
     1
@@ -12,4 +12,4 @@ pairing:
   B:
   - b
 mapsize: 10
-n_worlds: 100
+n_worlds: 10

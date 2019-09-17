@@ -1,6 +1,0 @@
-model_class: !!python/name:models.relationalnet.RelationalNet ''
-conv_size: 64
-attn_size: 32
-qkv_dim: 16
-n_heads: 4
-dense_size: 256
